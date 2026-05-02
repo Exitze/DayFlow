@@ -22,6 +22,7 @@ let package = Package(
                 "DayflowCalendarView.swift",
                 "DayflowHomeView.swift",
                 "Info.plist",
+                "LaunchScreen.storyboard",
                 "PrivacyInfo.xcprivacy"
             ],
             sources: [

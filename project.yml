@@ -23,7 +23,7 @@ targets:
           - Unbounded-SemiBold.ttf
           - Manrope-Regular.ttf
           - Manrope-Bold.ttf
-        UILaunchScreen: {}
+        UILaunchStoryboardName: LaunchScreen
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         UIApplicationSceneManifest:

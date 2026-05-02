@@ -12,6 +12,7 @@
 		133BC60F4C4470F8AF8CF9B1 /* Unbounded-Black.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 6D655A639E3345C987C23A1B /* Unbounded-Black.ttf */; };
 		25B8DD9D42E34C0A9BBE8162 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3A11F6B7D61F42BE83E0DA53 /* PrivacyInfo.xcprivacy */; };
 		3B5700D8EE5A4F6BB2D4E232 /* Manrope-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C41DA8CB92FE4AF2A82F5C60 /* Manrope-Bold.ttf */; };
+		6EF0402772C54F059866612D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = D54C3C2770B84F47A384B6C7 /* LaunchScreen.storyboard */; };
 		5B9E1B6DB08E43E4BA95D7C3 /* Unbounded-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 472770621D924553938BC3C7 /* Unbounded-SemiBold.ttf */; };
 		998716E7DB8F55F9D9C076EB /* DayflowHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA954912F428FB7338FF9F28 /* DayflowHomeView.swift */; };
 		A076704E1D6B49BBA1045E6B /* Manrope-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9F4E9B03A6A840F6A6FA0DD0 /* Manrope-Regular.ttf */; };
@@ -32,6 +33,7 @@
 		B6A41E5F0C384F6DBEE10004 /* DayPlanStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayPlanStore.swift; sourceTree = "<group>"; };
 		B6A41E5F0C384F6DBEE10006 /* DayflowCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayflowCalendarView.swift; sourceTree = "<group>"; };
 		C41DA8CB92FE4AF2A82F5C60 /* Manrope-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Manrope-Bold.ttf"; sourceTree = "<group>"; };
+		D54C3C2770B84F47A384B6C7 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		E80FF67E34B3A2DB485C6B17 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		FA954912F428FB7338FF9F28 /* DayflowHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayflowHomeView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -55,6 +57,7 @@
 				B6A41E5F0C384F6DBEE10004 /* DayPlanStore.swift */,
 				FA954912F428FB7338FF9F28 /* DayflowHomeView.swift */,
 				B6A41E5F0C384F6DBEE10006 /* DayflowCalendarView.swift */,
+				D54C3C2770B84F47A384B6C7 /* LaunchScreen.storyboard */,
 				3A11F6B7D61F42BE83E0DA53 /* PrivacyInfo.xcprivacy */,
 				E80FF67E34B3A2DB485C6B17 /* Info.plist */,
 			);
@@ -136,6 +139,7 @@
 			files = (
 				0DB011C9207951D36829BE33 /* Assets.xcassets in Resources */,
 				25B8DD9D42E34C0A9BBE8162 /* PrivacyInfo.xcprivacy in Resources */,
+				6EF0402772C54F059866612D /* LaunchScreen.storyboard in Resources */,
 				133BC60F4C4470F8AF8CF9B1 /* Unbounded-Black.ttf in Resources */,
 				5B9E1B6DB08E43E4BA95D7C3 /* Unbounded-SemiBold.ttf in Resources */,
 				A076704E1D6B49BBA1045E6B /* Manrope-Regular.ttf in Resources */,
