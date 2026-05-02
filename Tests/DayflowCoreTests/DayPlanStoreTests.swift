@@ -1,0 +1,504 @@
+import XCTest
+@testable import DayflowCore
+
+final class DayPlanStoreTests: XCTestCase {
+    func testPrivacyDocumentDeclaresLocalOnlyDataAndNoTracking() throws {
+        let document = AppLegalDocument.privacyPolicy
+        let body = document.body
+
+        XCTAssertTrue(body.contains("UserDefaults"))
+        XCTAssertTrue(body.contains("не отправляет"))
+        XCTAssertTrue(body.contains("не использует трекинг"))
+        XCTAssertTrue(body.contains("можно удалить"))
+    }
+
+    func testReleaseReadinessSeparatesProjectItemsFromExternalAppStoreWork() throws {
+        let projectItems = DayflowReleaseReadiness.items.filter(\.isHandledInProject).map(\.id)
+        let externalItems = DayflowReleaseReadiness.externalItems.map(\.id)
+
+        XCTAssertTrue(projectItems.contains(.privacyManifest))
+        XCTAssertTrue(projectItems.contains(.localDataDeletion))
+        XCTAssertTrue(externalItems.contains(.developerProgram))
+        XCTAssertTrue(externalItems.contains(.privacyPolicyURL))
+        XCTAssertTrue(externalItems.contains(.supportURL))
+        XCTAssertTrue(externalItems.contains(.testFlight))
+    }
+
+    func testStoreStartsEmptyWhenStorageHasNoActivities() throws {
+        let store = DayPlanStore(storage: MemoryActivityStorage())
+
+        XCTAssertEqual(store.activities, [])
+        XCTAssertEqual(store.summary.totalCount, 0)
+        XCTAssertEqual(store.summary.progressPercent, 0)
+    }
+
+    func testAddingActivitiesSortsByTimeAndPersists() throws {
+        let storage = MemoryActivityStorage()
+        let store = DayPlanStore(storage: storage)
+
+        try store.add(
+            NewDayActivity(
+                title: "Зал",
+                timeText: "20:00",
+                detail: "Силовая, 60 мин",
+                category: .body,
+                icon: "dumbbell.fill",
+                accent: .lime
+            )
+        )
+        try store.add(
+            NewDayActivity(
+                title: "Бег",
+                timeText: "7:00",
+                detail: "Парк",
+                category: .body,
+                icon: "figure.run",
+                accent: .sky
+            )
+        )
+
+        XCTAssertEqual(store.activities.map(\.title), ["Бег", "Зал"])
+        XCTAssertEqual(storage.savedActivities.map(\.title), ["Бег", "Зал"])
+    }
+
+    func testFilteringUsesRealActivityCategory() throws {
+        let store = DayPlanStore(storage: MemoryActivityStorage())
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky))
+        try store.add(NewDayActivity(title: "Медитация", timeText: "22:30", detail: "15 мин", category: .personal, icon: "moon.fill", accent: .rose))
+
+        XCTAssertEqual(store.activities(filteredBy: .all).map(\.title), ["Бег", "Медитация"])
+        XCTAssertEqual(store.activities(filteredBy: .body).map(\.title), ["Бег"])
+        XCTAssertEqual(store.activities(filteredBy: .personal).map(\.title), ["Медитация"])
+    }
+
+    func testSummaryProgressComesFromCompletedActivities() throws {
+        let store = DayPlanStore(storage: MemoryActivityStorage())
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky))
+        try store.add(NewDayActivity(title: "Зал", timeText: "20:00", detail: "Силовая", category: .body, icon: "dumbbell.fill", accent: .lime))
+        try store.add(NewDayActivity(title: "Медитация", timeText: "22:30", detail: "15 мин", category: .personal, icon: "moon.fill", accent: .rose))
+
+        try store.setCompleted(store.activities[0].id, true)
+        try store.setCompleted(store.activities[1].id, true)
+
+        XCTAssertEqual(store.summary.totalCount, 3)
+        XCTAssertEqual(store.summary.completedCount, 2)
+        XCTAssertEqual(store.summary.progressPercent, 67)
+    }
+
+    func testValidationRejectsBlankTitleAndInvalidTime() throws {
+        let store = DayPlanStore(storage: MemoryActivityStorage())
+
+        XCTAssertThrowsError(
+            try store.add(NewDayActivity(title: "   ", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky))
+        )
+
+        XCTAssertThrowsError(
+            try store.add(NewDayActivity(title: "Бег", timeText: "25:70", detail: "Парк", category: .body, icon: "figure.run", accent: .sky))
+        )
+
+        XCTAssertEqual(store.activities, [])
+    }
+
+    func testCalendarActivitiesAreScopedToSelectedDay() throws {
+        let storage = MemoryActivityStorage()
+        let store = DayPlanStore(storage: storage)
+        let today = date(year: 2026, month: 5, day: 2)
+        let tomorrow = date(year: 2026, month: 5, day: 3)
+
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky), on: today)
+        try store.add(NewDayActivity(title: "Зал", timeText: "20:00", detail: "Силовая", category: .body, icon: "dumbbell.fill", accent: .lime), on: tomorrow)
+
+        XCTAssertEqual(store.activities(on: today).map(\.title), ["Бег"])
+        XCTAssertEqual(store.activities(on: tomorrow).map(\.title), ["Зал"])
+        XCTAssertEqual(store.summary(on: today).totalCount, 1)
+    }
+
+    func testDayDetailsPersistNotesAndShift() throws {
+        let storage = MemoryActivityStorage()
+        let store = DayPlanStore(storage: storage)
+        let day = date(year: 2026, month: 5, day: 2)
+
+        try store.setNote("Не забыть форму", for: day)
+        try store.setShift(.night, for: day)
+
+        XCTAssertEqual(store.details(for: day).note, "Не забыть форму")
+        XCTAssertEqual(store.details(for: day).shift, .night)
+        XCTAssertEqual(storage.savedDayDetails.first?.note, "Не забыть форму")
+        XCTAssertEqual(storage.savedDayDetails.first?.shift, .night)
+    }
+
+    func testDefaultAddUsesConfiguredTodayAcrossHomeAndCalendar() throws {
+        let today = date(year: 2026, month: 5, day: 2)
+        let tomorrow = date(year: 2026, month: 5, day: 3)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), todayProvider: { today })
+
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky))
+
+        XCTAssertEqual(store.activities(on: today).map(\.title), ["Бег"])
+        XCTAssertEqual(store.activities(filteredBy: .body).map(\.title), ["Бег"])
+        XCTAssertEqual(store.summary.totalCount, 1)
+        XCTAssertEqual(store.activities(on: tomorrow), [])
+    }
+
+    func testFutureCalendarActivityDoesNotPolluteHomeToday() throws {
+        let today = date(year: 2026, month: 5, day: 2)
+        let tomorrow = date(year: 2026, month: 5, day: 3)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), todayProvider: { today })
+
+        try store.add(NewDayActivity(title: "Зал", timeText: "20:00", detail: "Силовая", category: .body, icon: "dumbbell.fill", accent: .lime), on: tomorrow)
+
+        XCTAssertEqual(store.activities(on: tomorrow).map(\.title), ["Зал"])
+        XCTAssertEqual(store.activities(filteredBy: .all), [])
+        XCTAssertEqual(store.summary.totalCount, 0)
+    }
+
+    func testCompletingFromOneTabUpdatesSameDaySummaryForOtherTab() throws {
+        let today = date(year: 2026, month: 5, day: 2)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), todayProvider: { today })
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky), on: today)
+
+        let calendarActivity = try XCTUnwrap(store.activities(on: today).first)
+        try store.setCompleted(calendarActivity.id, true)
+
+        XCTAssertEqual(store.summary(on: today).completedCount, 1)
+        XCTAssertEqual(store.summary.completedCount, 1)
+        XCTAssertEqual(store.activities(filteredBy: .body).first?.isCompleted, true)
+    }
+
+    func testRemovingFromOneTabRemovesFromSameDayEverywhere() throws {
+        let today = date(year: 2026, month: 5, day: 2)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), todayProvider: { today })
+        try store.add(NewDayActivity(title: "Медитация", timeText: "22:00", detail: "15 мин", category: .personal, icon: "moon.fill", accent: .rose), on: today)
+
+        let activity = try XCTUnwrap(store.activities(on: today).first)
+        try store.remove(activity.id)
+
+        XCTAssertEqual(store.activities(on: today), [])
+        XCTAssertEqual(store.activities(filteredBy: .all), [])
+        XCTAssertEqual(store.summary.totalCount, 0)
+    }
+
+    func testLegacyActivitiesWithoutDayBelongToConfiguredTodayOnly() throws {
+        let today = date(year: 2026, month: 5, day: 2)
+        let tomorrow = date(year: 2026, month: 5, day: 3)
+        let storage = MemoryActivityStorage()
+        storage.activitiesToLoad = [
+            DayActivity(title: "Бег", timeMinutes: 420, detail: "Парк", category: .body, icon: "figure.run", accent: .sky)
+        ]
+        let store = DayPlanStore(storage: storage, todayProvider: { today })
+
+        XCTAssertEqual(store.activities(on: today).map(\.title), ["Бег"])
+        XCTAssertEqual(store.activities(on: tomorrow), [])
+    }
+
+    func testStoredCalendarStateReloadsAcrossTabsAndLaunches() throws {
+        let today = date(year: 2026, month: 5, day: 2)
+        let storage = MemoryActivityStorage()
+        let firstStore = DayPlanStore(storage: storage, todayProvider: { today })
+
+        try firstStore.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky), on: today)
+        try firstStore.setCompleted(try XCTUnwrap(firstStore.activities(on: today).first).id, true)
+        try firstStore.setShift(.morning, for: today)
+        try firstStore.setNote("Взять форму", for: today)
+
+        let reloadedStore = DayPlanStore(storage: storage, todayProvider: { today })
+
+        XCTAssertEqual(reloadedStore.activities(filteredBy: .body).map(\.title), ["Бег"])
+        XCTAssertEqual(reloadedStore.summary.completedCount, 1)
+        XCTAssertEqual(reloadedStore.details(for: today).shift, .morning)
+        XCTAssertEqual(reloadedStore.details(for: today).note, "Взять форму")
+    }
+
+    func testTwoTwoScheduleRepeatsFromStartDate() throws {
+        let start = date(year: 2026, month: 5, day: 2)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), todayProvider: { start })
+
+        try store.setShiftSchedule(.makePreset(.twoTwo, starting: start))
+
+        XCTAssertEqual(store.effectiveShift(for: start), .day)
+        XCTAssertEqual(store.effectiveShift(for: addingDays(1, to: start)), .day)
+        XCTAssertEqual(store.effectiveShift(for: addingDays(2, to: start)), .rest)
+        XCTAssertEqual(store.effectiveShift(for: addingDays(3, to: start)), .rest)
+        XCTAssertEqual(store.effectiveShift(for: addingDays(4, to: start)), .day)
+    }
+
+    func testTwoFiveScheduleRepeatsFromStartDate() throws {
+        let start = date(year: 2026, month: 5, day: 2)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), todayProvider: { start })
+
+        try store.setShiftSchedule(.makePreset(.twoFive, starting: start))
+
+        XCTAssertEqual(store.effectiveShift(for: start), .day)
+        XCTAssertEqual(store.effectiveShift(for: addingDays(1, to: start)), .day)
+        XCTAssertEqual(store.effectiveShift(for: addingDays(2, to: start)), .rest)
+        XCTAssertEqual(store.effectiveShift(for: addingDays(6, to: start)), .rest)
+        XCTAssertEqual(store.effectiveShift(for: addingDays(7, to: start)), .day)
+    }
+
+    func testDayNightScheduleIncludesNightAndRecovery() throws {
+        let start = date(year: 2026, month: 5, day: 2)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), todayProvider: { start })
+
+        try store.setShiftSchedule(.makePreset(.twoDayTwoNight, starting: start))
+
+        XCTAssertEqual(store.effectiveShift(for: start), .day)
+        XCTAssertEqual(store.effectiveShift(for: addingDays(1, to: start)), .day)
+        XCTAssertEqual(store.effectiveShift(for: addingDays(2, to: start)), .night)
+        XCTAssertEqual(store.effectiveShift(for: addingDays(3, to: start)), .night)
+        XCTAssertEqual(store.effectiveShift(for: addingDays(4, to: start)), .recovery)
+        XCTAssertEqual(store.effectiveShift(for: addingDays(5, to: start)), .rest)
+    }
+
+    func testManualShiftOverridesAutomaticScheduleWithoutChangingCycle() throws {
+        let start = date(year: 2026, month: 5, day: 2)
+        let overriddenDay = addingDays(2, to: start)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), todayProvider: { start })
+
+        try store.setShiftSchedule(.makePreset(.twoTwo, starting: start))
+        try store.setShift(.night, for: overriddenDay)
+
+        XCTAssertEqual(store.effectiveShift(for: overriddenDay), .night)
+        XCTAssertTrue(store.isShiftOverridden(for: overriddenDay))
+        XCTAssertEqual(store.effectiveShift(for: addingDays(3, to: start)), .rest)
+        XCTAssertEqual(store.effectiveShift(for: addingDays(4, to: start)), .day)
+    }
+
+    func testClearingManualShiftReturnsToAutomaticSchedule() throws {
+        let start = date(year: 2026, month: 5, day: 2)
+        let overriddenDay = addingDays(2, to: start)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), todayProvider: { start })
+
+        try store.setShiftSchedule(.makePreset(.twoTwo, starting: start))
+        try store.setShift(.night, for: overriddenDay)
+        try store.clearShiftOverride(for: overriddenDay)
+
+        XCTAssertEqual(store.effectiveShift(for: overriddenDay), .rest)
+        XCTAssertFalse(store.isShiftOverridden(for: overriddenDay))
+    }
+
+    func testSchedulePersistsAcrossLaunches() throws {
+        let start = date(year: 2026, month: 5, day: 2)
+        let storage = MemoryActivityStorage()
+        let firstStore = DayPlanStore(storage: storage, todayProvider: { start })
+
+        try firstStore.setShiftSchedule(.makePreset(.twoDayTwoNight, starting: start))
+        try firstStore.setShift(.morning, for: addingDays(4, to: start))
+
+        let reloadedStore = DayPlanStore(storage: storage, todayProvider: { start })
+
+        XCTAssertEqual(reloadedStore.shiftSchedule?.preset, .twoDayTwoNight)
+        XCTAssertEqual(reloadedStore.effectiveShift(for: addingDays(2, to: start)), .night)
+        XCTAssertEqual(reloadedStore.effectiveShift(for: addingDays(4, to: start)), .morning)
+    }
+
+    func testStatsSummaryUsesRealActivitiesAcrossLastSevenDays() throws {
+        let today = date(year: 2026, month: 5, day: 8)
+        let yesterday = addingDays(-1, to: today)
+        let twoDaysAgo = addingDays(-2, to: today)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), todayProvider: { today })
+
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky), on: today)
+        try store.add(NewDayActivity(title: "Зал", timeText: "20:00", detail: "Силовая", category: .body, icon: "dumbbell.fill", accent: .lime), on: today)
+        try store.add(NewDayActivity(title: "Медитация", timeText: "22:00", detail: "15 мин", category: .personal, icon: "moon.fill", accent: .rose), on: yesterday)
+        try store.add(NewDayActivity(title: "Чтение", timeText: "21:00", detail: "30 мин", category: .personal, icon: "book.fill", accent: .rose), on: twoDaysAgo)
+
+        try store.setCompleted(try XCTUnwrap(store.activities(on: today).first?.id), true)
+        try store.setCompleted(try XCTUnwrap(store.activities(on: yesterday).first?.id), true)
+
+        let stats = store.statsSummary(endingOn: today)
+
+        XCTAssertEqual(stats.totalActivities, 4)
+        XCTAssertEqual(stats.completedActivities, 2)
+        XCTAssertEqual(stats.completionPercent, 50)
+        XCTAssertEqual(stats.activeDays, 3)
+        XCTAssertEqual(stats.busiestDay?.dayID, DayActivity.dayID(for: today))
+        XCTAssertEqual(stats.days.count, 7)
+    }
+
+    func testStatsSummaryBuildsCategoryAndShiftBreakdown() throws {
+        let today = date(year: 2026, month: 5, day: 8)
+        let yesterday = addingDays(-1, to: today)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), todayProvider: { today })
+
+        try store.setShiftSchedule(.makePreset(.twoTwo, starting: yesterday))
+        try store.setShift(.night, for: today)
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky), on: today)
+        try store.add(NewDayActivity(title: "Медитация", timeText: "22:00", detail: "15 мин", category: .personal, icon: "moon.fill", accent: .rose), on: yesterday)
+
+        let stats = store.statsSummary(endingOn: today, dayCount: 2)
+
+        XCTAssertEqual(stats.categoryStats.first { $0.category == .body }?.totalCount, 1)
+        XCTAssertEqual(stats.categoryStats.first { $0.category == .personal }?.totalCount, 1)
+        XCTAssertEqual(stats.shiftStats.first { $0.shift == .night }?.dayCount, 1)
+        XCTAssertEqual(stats.shiftStats.first { $0.shift == .day }?.dayCount, 1)
+    }
+
+    func testStatsCurrentCompletionStreakStopsAtIncompleteOrEmptyDay() throws {
+        let today = date(year: 2026, month: 5, day: 8)
+        let yesterday = addingDays(-1, to: today)
+        let twoDaysAgo = addingDays(-2, to: today)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), todayProvider: { today })
+
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky), on: today)
+        try store.add(NewDayActivity(title: "Зал", timeText: "20:00", detail: "Силовая", category: .body, icon: "dumbbell.fill", accent: .lime), on: yesterday)
+        try store.add(NewDayActivity(title: "Медитация", timeText: "22:00", detail: "15 мин", category: .personal, icon: "moon.fill", accent: .rose), on: twoDaysAgo)
+
+        try store.setCompleted(try XCTUnwrap(store.activities(on: today).first?.id), true)
+        try store.setCompleted(try XCTUnwrap(store.activities(on: yesterday).first?.id), true)
+
+        XCTAssertEqual(store.statsSummary(endingOn: today).currentCompletionStreak, 2)
+    }
+
+    func testStatsSummaryFocusedDayMatchesSelectedEndDate() throws {
+        let today = date(year: 2026, month: 5, day: 8)
+        let selectedDay = addingDays(-3, to: today)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), todayProvider: { today })
+
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky), on: today)
+        try store.add(NewDayActivity(title: "Зал", timeText: "20:00", detail: "Силовая", category: .body, icon: "dumbbell.fill", accent: .lime), on: selectedDay)
+
+        let stats = store.statsSummary(endingOn: selectedDay)
+
+        XCTAssertEqual(stats.focusedDay?.dayID, DayActivity.dayID(for: selectedDay))
+        XCTAssertEqual(stats.focusedDay?.totalCount, 1)
+        XCTAssertEqual(stats.totalActivities, 1)
+    }
+
+    func testStatsSummaryCanUseCalendarMonthRange() throws {
+        let march31 = date(year: 2026, month: 3, day: 31)
+        let april1 = date(year: 2026, month: 4, day: 1)
+        let april12 = date(year: 2026, month: 4, day: 12)
+        let may1 = date(year: 2026, month: 5, day: 1)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), todayProvider: { may1 })
+
+        try store.add(NewDayActivity(title: "Март", timeText: "8:00", detail: "Старое", category: .personal, icon: "book.fill", accent: .rose), on: march31)
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky), on: april1)
+        try store.add(NewDayActivity(title: "Зал", timeText: "20:00", detail: "Силовая", category: .body, icon: "dumbbell.fill", accent: .lime), on: april12)
+        try store.add(NewDayActivity(title: "Май", timeText: "9:00", detail: "Новое", category: .personal, icon: "moon.fill", accent: .rose), on: may1)
+
+        let stats = store.statsSummary(from: april1, to: april12)
+
+        XCTAssertEqual(stats.days.count, 12)
+        XCTAssertEqual(stats.totalActivities, 2)
+        XCTAssertEqual(stats.categoryStats.first { $0.category == .body }?.totalCount, 2)
+        XCTAssertEqual(stats.focusedDay?.dayID, DayActivity.dayID(for: april12))
+    }
+
+    func testMonthStatsIncludesAutomaticShiftScheduleForWholeMonth() throws {
+        let may1 = date(year: 2026, month: 5, day: 1)
+        let may2 = date(year: 2026, month: 5, day: 2)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), todayProvider: { may2 })
+
+        try store.setShiftSchedule(.makePreset(.twoDayTwoNight, starting: may1))
+
+        let stats = store.statsSummary(forMonthContaining: may2)
+
+        XCTAssertEqual(stats.days.count, 31)
+        XCTAssertEqual(stats.shiftStats.reduce(0) { $0 + $1.dayCount }, 31)
+        XCTAssertEqual(stats.shiftStats.first { $0.shift == .day }?.dayCount, 11)
+        XCTAssertEqual(stats.shiftStats.first { $0.shift == .night }?.dayCount, 10)
+        XCTAssertEqual(stats.shiftStats.first { $0.shift == .recovery }?.dayCount, 5)
+        XCTAssertEqual(stats.shiftStats.first { $0.shift == .rest }?.dayCount, 5)
+    }
+
+    func testClearCompletedActivitiesKeepsOpenActivities() throws {
+        let today = date(year: 2026, month: 5, day: 2)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), todayProvider: { today })
+
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky), on: today)
+        try store.add(NewDayActivity(title: "Зал", timeText: "20:00", detail: "Силовая", category: .body, icon: "dumbbell.fill", accent: .lime), on: today)
+        try store.setCompleted(try XCTUnwrap(store.activities.first?.id), true)
+
+        try store.clearCompletedActivities()
+
+        XCTAssertEqual(store.activities.map(\.title), ["Зал"])
+        XCTAssertEqual(store.summary.totalCount, 1)
+        XCTAssertEqual(store.summary.completedCount, 0)
+    }
+
+    func testClearCalendarDetailsKeepsActivitiesAndSchedule() throws {
+        let today = date(year: 2026, month: 5, day: 2)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), todayProvider: { today })
+
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky), on: today)
+        try store.setNote("Взять форму", for: today)
+        try store.setShift(.night, for: today)
+        try store.setShiftSchedule(.makePreset(.twoTwo, starting: today))
+
+        try store.clearCalendarDetails()
+
+        XCTAssertEqual(store.activities.map(\.title), ["Бег"])
+        XCTAssertEqual(store.dayDetails, [])
+        XCTAssertEqual(store.shiftSchedule?.preset, .twoTwo)
+        XCTAssertEqual(store.effectiveShift(for: today), .day)
+    }
+
+    func testResetAllDataClearsActivitiesDetailsAndSchedule() throws {
+        let today = date(year: 2026, month: 5, day: 2)
+        let storage = MemoryActivityStorage()
+        let store = DayPlanStore(storage: storage, todayProvider: { today })
+
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky), on: today)
+        try store.setNote("Взять форму", for: today)
+        try store.setShiftSchedule(.makePreset(.twoTwo, starting: today))
+
+        try store.resetAllData()
+
+        XCTAssertEqual(store.activities, [])
+        XCTAssertEqual(store.dayDetails, [])
+        XCTAssertNil(store.shiftSchedule)
+        XCTAssertEqual(storage.savedActivities, [])
+        XCTAssertEqual(storage.savedDayDetails, [])
+        XCTAssertNil(storage.savedShiftSchedule)
+    }
+}
+
+private final class MemoryActivityStorage: DayActivityStorage {
+    var savedActivities: [DayActivity] = []
+    var activitiesToLoad: [DayActivity] = []
+    var savedDayDetails: [DayDetails] = []
+    var dayDetailsToLoad: [DayDetails] = []
+    var savedShiftSchedule: ShiftSchedule?
+    var shiftScheduleToLoad: ShiftSchedule?
+
+    func loadActivities() throws -> [DayActivity] {
+        activitiesToLoad
+    }
+
+    func saveActivities(_ activities: [DayActivity]) throws {
+        savedActivities = activities
+        activitiesToLoad = activities
+    }
+
+    func loadDayDetails() throws -> [DayDetails] {
+        dayDetailsToLoad
+    }
+
+    func saveDayDetails(_ dayDetails: [DayDetails]) throws {
+        savedDayDetails = dayDetails
+        dayDetailsToLoad = dayDetails
+    }
+
+    func loadShiftSchedule() throws -> ShiftSchedule? {
+        shiftScheduleToLoad
+    }
+
+    func saveShiftSchedule(_ shiftSchedule: ShiftSchedule?) throws {
+        savedShiftSchedule = shiftSchedule
+        shiftScheduleToLoad = shiftSchedule
+    }
+}
+
+private func date(year: Int, month: Int, day: Int) -> Date {
+    var components = DateComponents()
+    components.calendar = Calendar(identifier: .gregorian)
+    components.timeZone = TimeZone(secondsFromGMT: 0)
+    components.year = year
+    components.month = month
+    components.day = day
+    return components.date!
+}
+
+private func addingDays(_ days: Int, to date: Date) -> Date {
+    Calendar(identifier: .gregorian).date(byAdding: .day, value: days, to: date)!
+}

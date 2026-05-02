@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Xcode
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
+
+# Signing and local secrets
+*.mobileprovision
+*.p12
+*.cer
+*.key
+*.env
+.env.*
+
+# Local screenshots and debug captures
+screenshots/
+.superpowers/
+
+# Editors
+.vscode/
+.idea/
+*.swp
