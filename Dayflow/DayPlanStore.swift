@@ -80,7 +80,7 @@ public final class UserDefaultsActivityStorage: DayActivityStorage {
 }
 
 public enum DayflowAppGroup {
-    public static let identifier = "group.com.dayflow.app"
+    public static let identifier = "group.com.exitze.dayflow"
 }
 
 public enum DayflowStorageMigration {

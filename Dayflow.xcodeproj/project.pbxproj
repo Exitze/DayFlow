@@ -298,7 +298,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.dayflow.app.widget;
+				PRODUCT_BUNDLE_IDENTIFIER = com.exitze.dayflow.widget;
 				PRODUCT_NAME = DayflowWidgetExtension;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -377,7 +377,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.dayflow.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.exitze.dayflow;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -462,7 +462,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.dayflow.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.exitze.dayflow;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -481,7 +481,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.dayflow.app.widget;
+				PRODUCT_BUNDLE_IDENTIFIER = com.exitze.dayflow.widget;
 				PRODUCT_NAME = DayflowWidgetExtension;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";

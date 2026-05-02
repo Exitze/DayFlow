@@ -47,7 +47,7 @@
 ## Task 3: Widget Extension Target
 
 - [ ] Create widget target files under `DayflowWidget/`.
-- [ ] Create app and widget entitlements with `group.com.dayflow.app`.
+- [ ] Create app and widget entitlements with `group.com.exitze.dayflow`.
 - [ ] Update `project.yml` with widget extension target and app dependency.
 - [ ] Run `xcodegen generate`.
 - [ ] Run `xcodebuild -list -project Dayflow.xcodeproj` and verify `DayflowWidgetExtension` appears.

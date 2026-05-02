@@ -55,7 +55,7 @@ Widgets run in a separate extension process, so the app and widget need shared d
 
 The storage layer will move from plain `UserDefaults.standard` to an App Group-backed UserDefaults suite. The shared group should be:
 
-`group.com.dayflow.app`
+`group.com.exitze.dayflow`
 
 The existing `DayActivityStorage` abstraction stays. A shared storage implementation will load and save the same activities, day details, and shift schedule for both the app target and widget extension.
 
