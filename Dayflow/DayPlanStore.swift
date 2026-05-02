@@ -11,6 +11,8 @@ public protocol DayActivityStorage {
 }
 
 public final class UserDefaultsActivityStorage: DayActivityStorage {
+    public static let defaultKey = "dayflow.activities.v1"
+
     private let defaults: UserDefaults
     private let activitiesKey: String
     private let dayDetailsKey: String
@@ -18,11 +20,18 @@ public final class UserDefaultsActivityStorage: DayActivityStorage {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
-    public init(defaults: UserDefaults = .standard, key: String = "dayflow.activities.v1") {
+    public init(defaults: UserDefaults = .standard, key: String = defaultKey) {
         self.defaults = defaults
         self.activitiesKey = key
         self.dayDetailsKey = "\(key).day-details"
         self.shiftScheduleKey = "\(key).shift-schedule"
+    }
+
+    public static func sharedAppGroupStorage(
+        appGroupIdentifier: String = DayflowAppGroup.identifier,
+        fallbackDefaults: UserDefaults = .standard
+    ) -> UserDefaultsActivityStorage {
+        UserDefaultsActivityStorage(defaults: UserDefaults(suiteName: appGroupIdentifier) ?? fallbackDefaults)
     }
 
     public func loadActivities() throws -> [DayActivity] {
@@ -70,6 +79,38 @@ public final class UserDefaultsActivityStorage: DayActivityStorage {
     }
 }
 
+public enum DayflowAppGroup {
+    public static let identifier = "group.com.dayflow.app"
+}
+
+public enum DayflowStorageMigration {
+    @discardableResult
+    public static func migrateIfNeeded(from legacyStorage: DayActivityStorage, to sharedStorage: DayActivityStorage) throws -> Bool {
+        let sharedActivities = try sharedStorage.loadActivities()
+        let sharedDayDetails = try sharedStorage.loadDayDetails()
+        let sharedShiftSchedule = try sharedStorage.loadShiftSchedule()
+
+        guard sharedActivities.isEmpty,
+              sharedDayDetails.isEmpty,
+              sharedShiftSchedule == nil else {
+            return false
+        }
+
+        let legacyActivities = try legacyStorage.loadActivities()
+        let legacyDayDetails = try legacyStorage.loadDayDetails()
+        let legacyShiftSchedule = try legacyStorage.loadShiftSchedule()
+
+        guard !legacyActivities.isEmpty || !legacyDayDetails.isEmpty || legacyShiftSchedule != nil else {
+            return false
+        }
+
+        try sharedStorage.saveActivities(legacyActivities)
+        try sharedStorage.saveDayDetails(legacyDayDetails)
+        try sharedStorage.saveShiftSchedule(legacyShiftSchedule)
+        return true
+    }
+}
+
 public final class DayPlanStore: ObservableObject {
     @Published public private(set) var activities: [DayActivity]
     @Published public private(set) var dayDetails: [DayDetails]
@@ -83,8 +124,21 @@ public final class DayPlanStore: ObservableObject {
         summary(on: todayProvider())
     }
 
+    public convenience init(
+        calendar: Calendar = .current,
+        todayProvider: @escaping () -> Date = Date.init
+    ) {
+        let sharedStorage = UserDefaultsActivityStorage.sharedAppGroupStorage()
+        _ = try? DayflowStorageMigration.migrateIfNeeded(
+            from: UserDefaultsActivityStorage(defaults: .standard),
+            to: sharedStorage
+        )
+
+        self.init(storage: sharedStorage, calendar: calendar, todayProvider: todayProvider)
+    }
+
     public init(
-        storage: DayActivityStorage = UserDefaultsActivityStorage(),
+        storage: DayActivityStorage,
         calendar: Calendar = .current,
         todayProvider: @escaping () -> Date = Date.init
     ) {

@@ -14,10 +14,14 @@ targets:
     platform: iOS
     sources:
       - Dayflow
+    dependencies:
+      - target: DayflowWidgetExtension
+        embed: true
     info:
       path: Dayflow/Info.plist
       properties:
         CFBundleDisplayName: Dayflow
+        ITSAppUsesNonExemptEncryption: false
         UIAppFonts:
           - Unbounded-Black.ttf
           - Unbounded-SemiBold.ttf
@@ -32,3 +36,37 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dayflow.app
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_ENTITLEMENTS: Dayflow/Dayflow.entitlements
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: JB6349HSHY
+
+  DayflowWidgetExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - DayflowWidget
+      - path: Dayflow/DayActivityModel.swift
+      - path: Dayflow/DayPlanStore.swift
+      - path: Dayflow/DayflowWidgetSnapshot.swift
+    resources:
+      - Dayflow/Fonts
+    info:
+      path: DayflowWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Dayflow
+        CFBundlePackageType: XPC!
+        UIAppFonts:
+          - Unbounded-Black.ttf
+          - Unbounded-SemiBold.ttf
+          - Manrope-Regular.ttf
+          - Manrope-Bold.ttf
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dayflow.app.widget
+        PRODUCT_NAME: DayflowWidgetExtension
+        APPLICATION_EXTENSION_API_ONLY: YES
+        CODE_SIGN_ENTITLEMENTS: DayflowWidget/DayflowWidget.entitlements
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: JB6349HSHY

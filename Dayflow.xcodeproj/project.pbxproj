@@ -7,35 +7,77 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		074878DB871A8C5339EA5842 /* DayActivityModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4126DD2C0034AC31706F58B /* DayActivityModel.swift */; };
 		08C2EC72245F88950E1260BE /* DayflowApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CA6AF77DB56CA9FFD3DDCD7 /* DayflowApp.swift */; };
 		0DB011C9207951D36829BE33 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4AC26A5F7AE741FCACBE9F90 /* Assets.xcassets */; };
-		133BC60F4C4470F8AF8CF9B1 /* Unbounded-Black.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 6D655A639E3345C987C23A1B /* Unbounded-Black.ttf */; };
-		25B8DD9D42E34C0A9BBE8162 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3A11F6B7D61F42BE83E0DA53 /* PrivacyInfo.xcprivacy */; };
-		3B5700D8EE5A4F6BB2D4E232 /* Manrope-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C41DA8CB92FE4AF2A82F5C60 /* Manrope-Bold.ttf */; };
-		6EF0402772C54F059866612D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = D54C3C2770B84F47A384B6C7 /* LaunchScreen.storyboard */; };
-		5B9E1B6DB08E43E4BA95D7C3 /* Unbounded-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 472770621D924553938BC3C7 /* Unbounded-SemiBold.ttf */; };
+		1164026FF35A5BE54E6F02BD /* DayPlanStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A3837505DE7A7F519EAE2AF /* DayPlanStore.swift */; };
+		1F7831740EF9E72E3C55D276 /* DayflowWidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6EEADE1649222F754159928 /* DayflowWidgetSnapshot.swift */; };
+		1FFFD91A800D11642EDEADDE /* Manrope-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 8F7C32ADFCF835FC673AF943 /* Manrope-Bold.ttf */; };
+		61EA6EB3893C7BD1D8090338 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = EBD7D6C5DB3B1B4DA5E903B0 /* LaunchScreen.storyboard */; };
+		68A069BEA19D815D31D9C2F8 /* DayflowWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAC39E75B7014BF2B26E3F7A /* DayflowWidget.swift */; };
+		88D606D1D4021AF9E5CBACEB /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A6C519682EFA3B65913EF742 /* PrivacyInfo.xcprivacy */; };
+		8E241C6446C0AA2A80553EAD /* CompleteActivityIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE3438A82C03DBC7B542547 /* CompleteActivityIntent.swift */; };
 		998716E7DB8F55F9D9C076EB /* DayflowHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA954912F428FB7338FF9F28 /* DayflowHomeView.swift */; };
-		A076704E1D6B49BBA1045E6B /* Manrope-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9F4E9B03A6A840F6A6FA0DD0 /* Manrope-Regular.ttf */; };
-		B6A41E5F0C384F6DBEE10001 /* DayActivityModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A41E5F0C384F6DBEE10003 /* DayActivityModel.swift */; };
-		B6A41E5F0C384F6DBEE10002 /* DayPlanStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A41E5F0C384F6DBEE10004 /* DayPlanStore.swift */; };
-		B6A41E5F0C384F6DBEE10005 /* DayflowCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6A41E5F0C384F6DBEE10006 /* DayflowCalendarView.swift */; };
+		9C94115939D543D5B6A8F806 /* DayActivityModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4126DD2C0034AC31706F58B /* DayActivityModel.swift */; };
+		A02D3090A687E33EDB56C504 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 84DA3BDB9F9CF34BCEB5C004 /* PrivacyInfo.xcprivacy */; };
+		A271763F071ABF110879E102 /* Unbounded-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 739FE12A5ED0A9FB1C8210D5 /* Unbounded-SemiBold.ttf */; };
+		A883E219F645D85626014302 /* DayflowCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4990996F9109EEAA684386D3 /* DayflowCalendarView.swift */; };
+		AD88EA8911131E9051610CEA /* DayPlanStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A3837505DE7A7F519EAE2AF /* DayPlanStore.swift */; };
+		B0B6A5943681F36ACECEBC53 /* DayflowWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 347B418E2B5631103389100E /* DayflowWidgetBundle.swift */; };
+		B0CC85483A36D93B905D2740 /* DayflowWidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6EEADE1649222F754159928 /* DayflowWidgetSnapshot.swift */; };
+		BAC54BBAFAF9FDF85A38D633 /* DayflowWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AB3097F1FFAA74736A82AD27 /* DayflowWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		DC41EE4F20BA41E501DE2A63 /* Manrope-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 74AEC59C0B54BACC183F1DF0 /* Manrope-Regular.ttf */; };
+		EFE0F7295097BC2CE9F933F0 /* Unbounded-Black.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 609E45D5A1DB7081EB2D3DAA /* Unbounded-Black.ttf */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		5C0AF8EDE4536A90EF6AC04F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8CA7A2CF14269BAABA96C34A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A0DE1FBA4F884BB82CFA9754;
+			remoteInfo = DayflowWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A266A6F89EB4D01B47B449B8 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				BAC54BBAFAF9FDF85A38D633 /* DayflowWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
-		39F528846FF404507B472CE6 /* Dayflow.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Dayflow.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		3A11F6B7D61F42BE83E0DA53 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		472770621D924553938BC3C7 /* Unbounded-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Unbounded-SemiBold.ttf"; sourceTree = "<group>"; };
+		347B418E2B5631103389100E /* DayflowWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayflowWidgetBundle.swift; sourceTree = "<group>"; };
+		39F528846FF404507B472CE6 /* Dayflow.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Dayflow.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4990996F9109EEAA684386D3 /* DayflowCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayflowCalendarView.swift; sourceTree = "<group>"; };
 		4AC26A5F7AE741FCACBE9F90 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		6D655A639E3345C987C23A1B /* Unbounded-Black.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Unbounded-Black.ttf"; sourceTree = "<group>"; };
+		4E9B6B7933E6F48284EFA980 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		609E45D5A1DB7081EB2D3DAA /* Unbounded-Black.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Unbounded-Black.ttf"; sourceTree = "<group>"; };
+		739FE12A5ED0A9FB1C8210D5 /* Unbounded-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Unbounded-SemiBold.ttf"; sourceTree = "<group>"; };
+		74AEC59C0B54BACC183F1DF0 /* Manrope-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Manrope-Regular.ttf"; sourceTree = "<group>"; };
 		7CA6AF77DB56CA9FFD3DDCD7 /* DayflowApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayflowApp.swift; sourceTree = "<group>"; };
-		9F4E9B03A6A840F6A6FA0DD0 /* Manrope-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Manrope-Regular.ttf"; sourceTree = "<group>"; };
-		B6A41E5F0C384F6DBEE10003 /* DayActivityModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayActivityModel.swift; sourceTree = "<group>"; };
-		B6A41E5F0C384F6DBEE10004 /* DayPlanStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayPlanStore.swift; sourceTree = "<group>"; };
-		B6A41E5F0C384F6DBEE10006 /* DayflowCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayflowCalendarView.swift; sourceTree = "<group>"; };
-		C41DA8CB92FE4AF2A82F5C60 /* Manrope-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Manrope-Bold.ttf"; sourceTree = "<group>"; };
-		D54C3C2770B84F47A384B6C7 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		84DA3BDB9F9CF34BCEB5C004 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		8F7C32ADFCF835FC673AF943 /* Manrope-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Manrope-Bold.ttf"; sourceTree = "<group>"; };
+		9A3837505DE7A7F519EAE2AF /* DayPlanStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayPlanStore.swift; sourceTree = "<group>"; };
+		9A6B198DEF51C3125A57427B /* DayflowWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DayflowWidget.entitlements; sourceTree = "<group>"; };
+		A6C519682EFA3B65913EF742 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		AAE3438A82C03DBC7B542547 /* CompleteActivityIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompleteActivityIntent.swift; sourceTree = "<group>"; };
+		AB3097F1FFAA74736A82AD27 /* DayflowWidgetExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = DayflowWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B6EEADE1649222F754159928 /* DayflowWidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayflowWidgetSnapshot.swift; sourceTree = "<group>"; };
+		D4126DD2C0034AC31706F58B /* DayActivityModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayActivityModel.swift; sourceTree = "<group>"; };
 		E80FF67E34B3A2DB485C6B17 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		EBD7D6C5DB3B1B4DA5E903B0 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		EC43CE7B07DE9D3FABF8D3F9 /* Dayflow.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Dayflow.entitlements; sourceTree = "<group>"; };
 		FA954912F428FB7338FF9F28 /* DayflowHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayflowHomeView.swift; sourceTree = "<group>"; };
+		FAC39E75B7014BF2B26E3F7A /* DayflowWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayflowWidget.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -43,42 +85,59 @@
 			isa = PBXGroup;
 			children = (
 				39F528846FF404507B472CE6 /* Dayflow.app */,
+				AB3097F1FFAA74736A82AD27 /* DayflowWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		3B1D512F38EA862755E352B7 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				8F7C32ADFCF835FC673AF943 /* Manrope-Bold.ttf */,
+				74AEC59C0B54BACC183F1DF0 /* Manrope-Regular.ttf */,
+				609E45D5A1DB7081EB2D3DAA /* Unbounded-Black.ttf */,
+				739FE12A5ED0A9FB1C8210D5 /* Unbounded-SemiBold.ttf */,
+			);
+			path = Fonts;
 			sourceTree = "<group>";
 		};
 		496735AE3CB662407EDCE64B /* Dayflow */ = {
 			isa = PBXGroup;
 			children = (
 				4AC26A5F7AE741FCACBE9F90 /* Assets.xcassets */,
-				AE42581BFA0F4902B8B22C08 /* Fonts */,
+				D4126DD2C0034AC31706F58B /* DayActivityModel.swift */,
+				EC43CE7B07DE9D3FABF8D3F9 /* Dayflow.entitlements */,
 				7CA6AF77DB56CA9FFD3DDCD7 /* DayflowApp.swift */,
-				B6A41E5F0C384F6DBEE10003 /* DayActivityModel.swift */,
-				B6A41E5F0C384F6DBEE10004 /* DayPlanStore.swift */,
+				4990996F9109EEAA684386D3 /* DayflowCalendarView.swift */,
 				FA954912F428FB7338FF9F28 /* DayflowHomeView.swift */,
-				B6A41E5F0C384F6DBEE10006 /* DayflowCalendarView.swift */,
-				D54C3C2770B84F47A384B6C7 /* LaunchScreen.storyboard */,
-				3A11F6B7D61F42BE83E0DA53 /* PrivacyInfo.xcprivacy */,
+				B6EEADE1649222F754159928 /* DayflowWidgetSnapshot.swift */,
+				9A3837505DE7A7F519EAE2AF /* DayPlanStore.swift */,
 				E80FF67E34B3A2DB485C6B17 /* Info.plist */,
+				EBD7D6C5DB3B1B4DA5E903B0 /* LaunchScreen.storyboard */,
+				84DA3BDB9F9CF34BCEB5C004 /* PrivacyInfo.xcprivacy */,
+				3B1D512F38EA862755E352B7 /* Fonts */,
 			);
 			path = Dayflow;
 			sourceTree = "<group>";
 		};
-		AE42581BFA0F4902B8B22C08 /* Fonts */ = {
+		8A67AE7AA618366652C1DA65 /* DayflowWidget */ = {
 			isa = PBXGroup;
 			children = (
-				6D655A639E3345C987C23A1B /* Unbounded-Black.ttf */,
-				472770621D924553938BC3C7 /* Unbounded-SemiBold.ttf */,
-				9F4E9B03A6A840F6A6FA0DD0 /* Manrope-Regular.ttf */,
-				C41DA8CB92FE4AF2A82F5C60 /* Manrope-Bold.ttf */,
+				AAE3438A82C03DBC7B542547 /* CompleteActivityIntent.swift */,
+				9A6B198DEF51C3125A57427B /* DayflowWidget.entitlements */,
+				FAC39E75B7014BF2B26E3F7A /* DayflowWidget.swift */,
+				347B418E2B5631103389100E /* DayflowWidgetBundle.swift */,
+				4E9B6B7933E6F48284EFA980 /* Info.plist */,
+				A6C519682EFA3B65913EF742 /* PrivacyInfo.xcprivacy */,
 			);
-			path = Fonts;
+			path = DayflowWidget;
 			sourceTree = "<group>";
 		};
 		F6C3BD5AF6FFDE1398D702F2 = {
 			isa = PBXGroup;
 			children = (
 				496735AE3CB662407EDCE64B /* Dayflow */,
+				8A67AE7AA618366652C1DA65 /* DayflowWidget */,
 				2D27CACCB009F434C3B30629 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -92,10 +151,12 @@
 			buildPhases = (
 				AFC7BD1C1001D047CD02FF78 /* Sources */,
 				E6E6A72E8B487D2AD34CB8F0 /* Resources */,
+				A266A6F89EB4D01B47B449B8 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				2D65A1470A210BE5541E90A1 /* PBXTargetDependency */,
 			);
 			name = Dayflow;
 			packageProductDependencies = (
@@ -103,6 +164,24 @@
 			productName = Dayflow;
 			productReference = 39F528846FF404507B472CE6 /* Dayflow.app */;
 			productType = "com.apple.product-type.application";
+		};
+		A0DE1FBA4F884BB82CFA9754 /* DayflowWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 978503A490BCFAF3F6D4B053 /* Build configuration list for PBXNativeTarget "DayflowWidgetExtension" */;
+			buildPhases = (
+				0372782104C18056005CA3B8 /* Sources */,
+				6C721161913F21C19E049322 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = DayflowWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = DayflowWidgetExtension;
+			productReference = AB3097F1FFAA74736A82AD27 /* DayflowWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -112,6 +191,16 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					28D180E47E35FD3B309F0EEE = {
+						DevelopmentTeam = JB6349HSHY;
+						ProvisioningStyle = Automatic;
+					};
+					A0DE1FBA4F884BB82CFA9754 = {
+						DevelopmentTeam = JB6349HSHY;
+						ProvisioningStyle = Automatic;
+					};
+				};
 			};
 			buildConfigurationList = ACBF290D5614D2666BF85A5D /* Build configuration list for PBXProject "Dayflow" */;
 			developmentRegion = en;
@@ -128,43 +217,94 @@
 			projectRoot = "";
 			targets = (
 				28D180E47E35FD3B309F0EEE /* Dayflow */,
+				A0DE1FBA4F884BB82CFA9754 /* DayflowWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		6C721161913F21C19E049322 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				88D606D1D4021AF9E5CBACEB /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E6E6A72E8B487D2AD34CB8F0 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				0DB011C9207951D36829BE33 /* Assets.xcassets in Resources */,
-				25B8DD9D42E34C0A9BBE8162 /* PrivacyInfo.xcprivacy in Resources */,
-				6EF0402772C54F059866612D /* LaunchScreen.storyboard in Resources */,
-				133BC60F4C4470F8AF8CF9B1 /* Unbounded-Black.ttf in Resources */,
-				5B9E1B6DB08E43E4BA95D7C3 /* Unbounded-SemiBold.ttf in Resources */,
-				A076704E1D6B49BBA1045E6B /* Manrope-Regular.ttf in Resources */,
-				3B5700D8EE5A4F6BB2D4E232 /* Manrope-Bold.ttf in Resources */,
+				61EA6EB3893C7BD1D8090338 /* LaunchScreen.storyboard in Resources */,
+				1FFFD91A800D11642EDEADDE /* Manrope-Bold.ttf in Resources */,
+				DC41EE4F20BA41E501DE2A63 /* Manrope-Regular.ttf in Resources */,
+				A02D3090A687E33EDB56C504 /* PrivacyInfo.xcprivacy in Resources */,
+				EFE0F7295097BC2CE9F933F0 /* Unbounded-Black.ttf in Resources */,
+				A271763F071ABF110879E102 /* Unbounded-SemiBold.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		0372782104C18056005CA3B8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8E241C6446C0AA2A80553EAD /* CompleteActivityIntent.swift in Sources */,
+				9C94115939D543D5B6A8F806 /* DayActivityModel.swift in Sources */,
+				1164026FF35A5BE54E6F02BD /* DayPlanStore.swift in Sources */,
+				68A069BEA19D815D31D9C2F8 /* DayflowWidget.swift in Sources */,
+				B0B6A5943681F36ACECEBC53 /* DayflowWidgetBundle.swift in Sources */,
+				B0CC85483A36D93B905D2740 /* DayflowWidgetSnapshot.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AFC7BD1C1001D047CD02FF78 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				074878DB871A8C5339EA5842 /* DayActivityModel.swift in Sources */,
+				AD88EA8911131E9051610CEA /* DayPlanStore.swift in Sources */,
 				08C2EC72245F88950E1260BE /* DayflowApp.swift in Sources */,
-				B6A41E5F0C384F6DBEE10001 /* DayActivityModel.swift in Sources */,
-				B6A41E5F0C384F6DBEE10002 /* DayPlanStore.swift in Sources */,
+				A883E219F645D85626014302 /* DayflowCalendarView.swift in Sources */,
 				998716E7DB8F55F9D9C076EB /* DayflowHomeView.swift in Sources */,
-				B6A41E5F0C384F6DBEE10005 /* DayflowCalendarView.swift in Sources */,
+				1F7831740EF9E72E3C55D276 /* DayflowWidgetSnapshot.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		2D65A1470A210BE5541E90A1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A0DE1FBA4F884BB82CFA9754 /* DayflowWidgetExtension */;
+			targetProxy = 5C0AF8EDE4536A90EF6AC04F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		1B1E3653C6E0DF7FE8001940 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = DayflowWidget/DayflowWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = JB6349HSHY;
+				INFOPLIST_FILE = DayflowWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.dayflow.app.widget;
+				PRODUCT_NAME = DayflowWidgetExtension;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		2D9A0B1A32FEEEBF2BB6B30C /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -228,7 +368,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Dayflow/Dayflow.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = JB6349HSHY;
 				INFOPLIST_FILE = Dayflow/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -311,7 +453,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Dayflow/Dayflow.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = JB6349HSHY;
 				INFOPLIST_FILE = Dayflow/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -324,9 +468,38 @@
 			};
 			name = Release;
 		};
+		DE4F5FFD056EE7E1AA8152C5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = DayflowWidget/DayflowWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = JB6349HSHY;
+				INFOPLIST_FILE = DayflowWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.dayflow.app.widget;
+				PRODUCT_NAME = DayflowWidgetExtension;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		978503A490BCFAF3F6D4B053 /* Build configuration list for PBXNativeTarget "DayflowWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DE4F5FFD056EE7E1AA8152C5 /* Debug */,
+				1B1E3653C6E0DF7FE8001940 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		9ECC6487668716E848EB21E3 /* Build configuration list for PBXNativeTarget "Dayflow" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

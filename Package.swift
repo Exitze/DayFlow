@@ -20,6 +20,7 @@ let package = Package(
                 "Fonts",
                 "DayflowApp.swift",
                 "DayflowCalendarView.swift",
+                "Dayflow.entitlements",
                 "DayflowHomeView.swift",
                 "Info.plist",
                 "LaunchScreen.storyboard",
@@ -27,7 +28,8 @@ let package = Package(
             ],
             sources: [
                 "DayActivityModel.swift",
-                "DayPlanStore.swift"
+                "DayPlanStore.swift",
+                "DayflowWidgetSnapshot.swift"
             ]
         ),
         .testTarget(

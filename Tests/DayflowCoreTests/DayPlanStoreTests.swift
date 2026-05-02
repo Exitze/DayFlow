@@ -2,6 +2,122 @@ import XCTest
 @testable import DayflowCore
 
 final class DayPlanStoreTests: XCTestCase {
+    func testUserDefaultsStorageMigratesLegacyDataToSharedStorage() throws {
+        let legacyDefaults = makeIsolatedDefaults()
+        let sharedDefaults = makeIsolatedDefaults()
+        defer {
+            remove(defaults: legacyDefaults)
+            remove(defaults: sharedDefaults)
+        }
+
+        let legacyStorage = UserDefaultsActivityStorage(defaults: legacyDefaults)
+        let sharedStorage = UserDefaultsActivityStorage(defaults: sharedDefaults)
+        let day = date(year: 2026, month: 5, day: 3)
+        let activity = DayActivity(title: "Бег", timeMinutes: 420, detail: "Парк", category: .body, icon: "figure.run", accent: .sky, dayID: DayActivity.dayID(for: day, calendar: testCalendar))
+        let details = DayDetails(dayID: DayActivity.dayID(for: day, calendar: testCalendar), note: "Взять форму", shift: .night, hasManualShift: true)
+        let schedule = ShiftSchedule.makePreset(.twoDayTwoNight, starting: day, calendar: testCalendar)
+
+        try legacyStorage.saveActivities([activity])
+        try legacyStorage.saveDayDetails([details])
+        try legacyStorage.saveShiftSchedule(schedule)
+
+        let migrated = try DayflowStorageMigration.migrateIfNeeded(from: legacyStorage, to: sharedStorage)
+
+        XCTAssertTrue(migrated)
+        XCTAssertEqual(try sharedStorage.loadActivities(), [activity])
+        XCTAssertEqual(try sharedStorage.loadDayDetails(), [details])
+        XCTAssertEqual(try sharedStorage.loadShiftSchedule(), schedule)
+    }
+
+    func testMigrationDoesNotOverwriteExistingSharedStorage() throws {
+        let legacyDefaults = makeIsolatedDefaults()
+        let sharedDefaults = makeIsolatedDefaults()
+        defer {
+            remove(defaults: legacyDefaults)
+            remove(defaults: sharedDefaults)
+        }
+
+        let legacyStorage = UserDefaultsActivityStorage(defaults: legacyDefaults)
+        let sharedStorage = UserDefaultsActivityStorage(defaults: sharedDefaults)
+        let legacyActivity = DayActivity(title: "Старое", timeMinutes: 420, detail: "Legacy", category: .body, icon: "figure.run", accent: .sky)
+        let sharedActivity = DayActivity(title: "Новое", timeMinutes: 480, detail: "Shared", category: .personal, icon: "moon.fill", accent: .rose)
+
+        try legacyStorage.saveActivities([legacyActivity])
+        try sharedStorage.saveActivities([sharedActivity])
+
+        let migrated = try DayflowStorageMigration.migrateIfNeeded(from: legacyStorage, to: sharedStorage)
+
+        XCTAssertFalse(migrated)
+        XCTAssertEqual(try sharedStorage.loadActivities(), [sharedActivity])
+    }
+
+    func testWidgetSnapshotUsesRealTodayData() throws {
+        let today = date(year: 2026, month: 5, day: 3)
+        let storage = MemoryActivityStorage()
+        let store = DayPlanStore(storage: storage, calendar: testCalendar, todayProvider: { today })
+
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky), on: today)
+        try store.add(NewDayActivity(title: "Зал", timeText: "20:00", detail: "Силовая", category: .body, icon: "dumbbell.fill", accent: .lime), on: today)
+        try store.setCompleted(try XCTUnwrap(store.activities(on: today).first?.id), true)
+        try store.setShiftSchedule(.makePreset(.twoTwo, starting: today, calendar: testCalendar))
+
+        let snapshot = DayflowWidgetSnapshotBuilder.snapshot(on: today, storage: storage, calendar: testCalendar)
+
+        XCTAssertEqual(snapshot.totalCount, 2)
+        XCTAssertEqual(snapshot.completedCount, 1)
+        XCTAssertEqual(snapshot.progressPercent, 50)
+        XCTAssertEqual(snapshot.nextActivities.map(\.title), ["Зал"])
+        XCTAssertEqual(snapshot.effectiveShift, .day)
+        XCTAssertEqual(snapshot.scheduleName, "2/2")
+    }
+
+    func testWidgetSnapshotBuildsWeeklyPulse() throws {
+        let today = date(year: 2026, month: 5, day: 8)
+        let yesterday = addingDays(-1, to: today)
+        let storage = MemoryActivityStorage()
+        let store = DayPlanStore(storage: storage, calendar: testCalendar, todayProvider: { today })
+
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky), on: today)
+        try store.add(NewDayActivity(title: "Зал", timeText: "20:00", detail: "Силовая", category: .body, icon: "dumbbell.fill", accent: .lime), on: yesterday)
+        try store.setCompleted(try XCTUnwrap(store.activities(on: yesterday).first?.id), true)
+
+        let snapshot = DayflowWidgetSnapshotBuilder.snapshot(on: today, storage: storage, calendar: testCalendar)
+
+        XCTAssertEqual(snapshot.weekDays.count, 7)
+        XCTAssertEqual(snapshot.weekDays.last?.dayID, DayActivity.dayID(for: today, calendar: testCalendar))
+        XCTAssertEqual(snapshot.weekDays.last?.totalCount, 1)
+        XCTAssertEqual(snapshot.weekDays[snapshot.weekDays.count - 2].completionPercent, 100)
+    }
+
+    func testWidgetActionCompletesActivity() throws {
+        let today = date(year: 2026, month: 5, day: 3)
+        let storage = MemoryActivityStorage()
+        let store = DayPlanStore(storage: storage, calendar: testCalendar, todayProvider: { today })
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky), on: today)
+
+        let activityID = try XCTUnwrap(store.activities(on: today).first?.id)
+        let changed = try DayflowWidgetActionService.completeActivity(id: activityID, storage: storage, calendar: testCalendar, todayProvider: { today })
+
+        let reloadedStore = DayPlanStore(storage: storage, calendar: testCalendar, todayProvider: { today })
+        XCTAssertTrue(changed)
+        XCTAssertEqual(reloadedStore.activities(on: today).first?.isCompleted, true)
+    }
+
+    func testWidgetActionIsIdempotentForCompletedActivity() throws {
+        let today = date(year: 2026, month: 5, day: 3)
+        let storage = MemoryActivityStorage()
+        let store = DayPlanStore(storage: storage, calendar: testCalendar, todayProvider: { today })
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky), on: today)
+
+        let activityID = try XCTUnwrap(store.activities(on: today).first?.id)
+        _ = try DayflowWidgetActionService.completeActivity(id: activityID, storage: storage, calendar: testCalendar, todayProvider: { today })
+        let changedAgain = try DayflowWidgetActionService.completeActivity(id: activityID, storage: storage, calendar: testCalendar, todayProvider: { today })
+
+        let reloadedStore = DayPlanStore(storage: storage, calendar: testCalendar, todayProvider: { today })
+        XCTAssertFalse(changedAgain)
+        XCTAssertEqual(reloadedStore.activities(on: today).first?.isCompleted, true)
+    }
+
     func testPrivacyDocumentDeclaresLocalOnlyDataAndNoTracking() throws {
         let document = AppLegalDocument.privacyPolicy
         let body = document.body
@@ -501,4 +617,27 @@ private func date(year: Int, month: Int, day: Int) -> Date {
 
 private func addingDays(_ days: Int, to date: Date) -> Date {
     Calendar(identifier: .gregorian).date(byAdding: .day, value: days, to: date)!
+}
+
+private var testCalendar: Calendar {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    return calendar
+}
+
+private func makeIsolatedDefaults() -> UserDefaults {
+    let suiteName = "dayflow.tests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defaults.removePersistentDomain(forName: suiteName)
+    isolatedDefaultSuiteNames.insert(suiteName)
+    return defaults
+}
+
+private var isolatedDefaultSuiteNames: Set<String> = []
+
+private func remove(defaults: UserDefaults) {
+    for suiteName in isolatedDefaultSuiteNames {
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+    isolatedDefaultSuiteNames.removeAll()
 }

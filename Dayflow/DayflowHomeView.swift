@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import WidgetKit
 
 enum DayflowTab: CaseIterable {
     case home
@@ -128,6 +129,15 @@ struct DayflowHomeView: View {
                 withAnimation(.easeInOut(duration: 9).repeatForever(autoreverses: true)) {
                     isAlive = true
                 }
+            }
+            .onReceive(store.$activities.dropFirst()) { _ in
+                WidgetCenter.shared.reloadAllTimelines()
+            }
+            .onReceive(store.$dayDetails.dropFirst()) { _ in
+                WidgetCenter.shared.reloadAllTimelines()
+            }
+            .onReceive(store.$shiftSchedule.dropFirst()) { _ in
+                WidgetCenter.shared.reloadAllTimelines()
             }
             .sheet(isPresented: $isShowingAddActivity) {
                 NewActivitySheet { newActivity in
