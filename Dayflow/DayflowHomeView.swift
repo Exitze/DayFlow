@@ -169,6 +169,14 @@ struct DayflowHomeView: View {
                 WidgetCenter.shared.reloadAllTimelines()
                 notificationController.rescheduleIfNeeded(store: store)
             }
+            .onReceive(store.$recurrenceRules.dropFirst()) { _ in
+                WidgetCenter.shared.reloadAllTimelines()
+                notificationController.rescheduleIfNeeded(store: store)
+            }
+            .onReceive(store.$recurrenceSkips.dropFirst()) { _ in
+                WidgetCenter.shared.reloadAllTimelines()
+                notificationController.rescheduleIfNeeded(store: store)
+            }
             .onOpenURL { url in
                 handleDeepLink(url)
             }
@@ -177,6 +185,9 @@ struct DayflowHomeView: View {
                     targetDate: currentDate,
                     onSave: { newActivity in
                         try store.add(newActivity, on: currentDate)
+                    },
+                    onSaveRecurring: { newActivity, pattern in
+                        try store.addRecurringActivity(newActivity, pattern: pattern, starting: currentDate)
                     },
                     onRepeatPreviousDay: repeatPreviousDayIntoToday
                 )
@@ -3719,6 +3730,7 @@ private struct SettingsDataActionRow: View {
 struct NewActivitySheet: View {
     let targetDate: Date
     let onSave: (NewDayActivity) throws -> Void
+    let onSaveRecurring: (NewDayActivity, DayActivityRecurrencePattern) throws -> Void
     let onRepeatPreviousDay: () throws -> Int
 
     @Environment(\.dismiss) private var dismiss
@@ -3730,6 +3742,10 @@ struct NewActivitySheet: View {
     @State private var category: DayActivityCategory = .body
     @State private var errorText: String?
     @State private var hasManualCategory = false
+    @State private var repeatMode: NewActivityRepeatMode = .none
+    @State private var selectedWeekdays: Set<Int> = []
+    @State private var selectedRecurringDayIDs: Set<String> = []
+    @State private var selectedShiftKinds: Set<ShiftKind> = []
 
     var body: some View {
         NavigationStack {
@@ -3742,6 +3758,8 @@ struct NewActivitySheet: View {
                     quickTemplateRail
 
                     repeatYesterdayButton
+
+                    recurrenceBlock
 
                     SheetTextField(title: "Название", placeholder: "если нужно поправить", text: $title)
                     SheetTextField(title: "Детали", placeholder: "Парк, 40 мин", text: $detail)
@@ -3851,6 +3869,7 @@ struct NewActivitySheet: View {
         .preferredColorScheme(.dark)
         .dismissKeyboardOnTapOutside()
         .onAppear {
+            initializeRecurrenceDefaults()
             isQuickInputFocused = true
         }
     }
@@ -3982,6 +4001,108 @@ struct NewActivitySheet: View {
         .buttonStyle(.plain)
     }
 
+    private var recurrenceBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Повтор")
+                .font(.dfBodyBold(12))
+                .foregroundStyle(Color.dayflowMist)
+                .textCase(.uppercase)
+
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                ForEach(NewActivityRepeatMode.allCases) { mode in
+                    Button {
+                        repeatMode = mode
+                        initializeRecurrenceDefaults()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: mode.icon)
+                                .font(.system(size: 12, weight: .black))
+
+                            Text(mode.title)
+                                .font(.dfBodyBold(12))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.76)
+                        }
+                        .foregroundStyle(repeatMode == mode ? Color.dayflowBlack : Color.dayflowPaper)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 42)
+                        .background(
+                            Capsule().fill(repeatMode == mode ? Color.dayflowLime : Color.dayflowPanel.opacity(0.82))
+                        )
+                        .overlay(Capsule().stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            recurrenceDetails
+        }
+    }
+
+    @ViewBuilder
+    private var recurrenceDetails: some View {
+        switch repeatMode {
+        case .none, .daily, .afterNight:
+            Text(repeatMode.subtitle)
+                .font(.dfBody(12))
+                .foregroundStyle(Color.dayflowMist)
+                .lineSpacing(3)
+        case .weekdays:
+            HStack(spacing: 7) {
+                ForEach(weekdayOptions, id: \.value) { option in
+                    Button {
+                        toggle(option.value, in: &selectedWeekdays)
+                    } label: {
+                        Text(option.title)
+                            .font(.dfBodyBold(11))
+                            .foregroundStyle(selectedWeekdays.contains(option.value) ? Color.dayflowBlack : Color.dayflowPaper)
+                            .frame(width: 38, height: 34)
+                            .background(Capsule().fill(selectedWeekdays.contains(option.value) ? Color.dayflowLime : Color.dayflowPanel.opacity(0.78)))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        case .selectedDates:
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(candidateRecurringDates, id: \.dayID) { item in
+                        Button {
+                            toggle(item.dayID, in: &selectedRecurringDayIDs)
+                        } label: {
+                            VStack(spacing: 2) {
+                                Text(item.weekday)
+                                    .font(.dfBodyBold(10))
+                                Text(item.day)
+                                    .font(.dfDisplaySmall(15))
+                            }
+                            .foregroundStyle(selectedRecurringDayIDs.contains(item.dayID) ? Color.dayflowBlack : Color.dayflowPaper)
+                            .frame(width: 48, height: 48)
+                            .background(RoundedRectangle(cornerRadius: 17, style: .continuous).fill(selectedRecurringDayIDs.contains(item.dayID) ? Color.dayflowLime : Color.dayflowPanel.opacity(0.78)))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        case .shifts:
+            HStack(spacing: 8) {
+                ForEach(recurrenceShiftOptions) { shift in
+                    Button {
+                        toggle(shift, in: &selectedShiftKinds)
+                    } label: {
+                        Text(shift.shortTitle)
+                            .font(.dfBodyBold(11))
+                            .foregroundStyle(selectedShiftKinds.contains(shift) ? Color.dayflowBlack : Color.dayflowPaper)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 36)
+                            .background(Capsule().fill(selectedShiftKinds.contains(shift) ? Color.dayflowLime : Color.dayflowPanel.opacity(0.78)))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
     private var trimmedTitle: String {
         title.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -3992,6 +4113,43 @@ struct NewActivitySheet: View {
 
     private var canSave: Bool {
         !trimmedQuickText.isEmpty || !trimmedTitle.isEmpty
+    }
+
+    private var recurrenceShiftOptions: [ShiftKind] {
+        [.day, .night, .recovery, .rest]
+    }
+
+    private var weekdayOptions: [(value: Int, title: String)] {
+        [
+            (1, "ПН"),
+            (2, "ВТ"),
+            (3, "СР"),
+            (4, "ЧТ"),
+            (5, "ПТ"),
+            (6, "СБ"),
+            (7, "ВС")
+        ]
+    }
+
+    private var candidateRecurringDates: [(date: Date, dayID: String, weekday: String, day: String)] {
+        let calendar = Calendar.current
+        let weekdayFormatter = DateFormatter()
+        weekdayFormatter.locale = Locale(identifier: "ru_RU")
+        weekdayFormatter.dateFormat = "EE"
+
+        let dayFormatter = DateFormatter()
+        dayFormatter.locale = Locale(identifier: "ru_RU")
+        dayFormatter.dateFormat = "d"
+
+        return (0..<14).map { offset in
+            let date = calendar.date(byAdding: .day, value: offset, to: targetDate) ?? targetDate
+            return (
+                date,
+                DayActivity.dayID(for: date, calendar: calendar),
+                weekdayFormatter.string(from: date).uppercased(),
+                dayFormatter.string(from: date)
+            )
+        }
     }
 
     private var previewActivity: NewDayActivity? {
@@ -4023,14 +4181,47 @@ struct NewActivitySheet: View {
 
     private func save() {
         do {
-            try onSave(makeActivity())
+            let activity = try makeActivity()
+            if let pattern = try recurrencePattern() {
+                try onSaveRecurring(activity, pattern)
+            } else {
+                try onSave(activity)
+            }
             dismiss()
         } catch DayActivityValidationError.blankTitle {
             errorText = "Добавь название."
         } catch DayActivityValidationError.invalidTime {
             errorText = "Проверь время."
+        } catch DayActivityValidationError.invalidRecurrence {
+            errorText = "Выбери дни, даты или смены для повтора."
         } catch {
             errorText = "Не удалось сохранить. Попробуй еще раз."
+        }
+    }
+
+    private func recurrencePattern() throws -> DayActivityRecurrencePattern? {
+        switch repeatMode {
+        case .none:
+            return nil
+        case .daily:
+            return .daily
+        case .weekdays:
+            guard !selectedWeekdays.isEmpty else {
+                throw DayActivityValidationError.invalidRecurrence
+            }
+            return .weekdays(selectedWeekdays.sorted())
+        case .selectedDates:
+            guard !selectedRecurringDayIDs.isEmpty else {
+                throw DayActivityValidationError.invalidRecurrence
+            }
+            return .selectedDates(selectedRecurringDayIDs.sorted())
+        case .shifts:
+            guard !selectedShiftKinds.isEmpty else {
+                throw DayActivityValidationError.invalidRecurrence
+            }
+            return .shiftKinds(recurrenceShiftOptions.filter { selectedShiftKinds.contains($0) })
+        case .afterNight:
+            return .afterNight
         }
     }
 
@@ -4086,6 +4277,86 @@ struct NewActivitySheet: View {
     private func date(fromMinutes minutes: Int) -> Date {
         let start = Calendar.current.startOfDay(for: targetDate)
         return Calendar.current.date(byAdding: .minute, value: minutes, to: start) ?? targetDate
+    }
+
+    private func initializeRecurrenceDefaults() {
+        if selectedWeekdays.isEmpty {
+            selectedWeekdays = [DayActivityRecurrenceRule.isoWeekday(for: targetDate, calendar: Calendar.current)]
+        }
+
+        if selectedRecurringDayIDs.isEmpty {
+            selectedRecurringDayIDs = [DayActivity.dayID(for: targetDate)]
+        }
+
+        if selectedShiftKinds.isEmpty {
+            selectedShiftKinds = [.rest]
+        }
+    }
+
+    private func toggle<T: Hashable>(_ value: T, in set: inout Set<T>) {
+        if set.contains(value) {
+            set.remove(value)
+        } else {
+            set.insert(value)
+        }
+    }
+}
+
+private enum NewActivityRepeatMode: String, CaseIterable, Identifiable {
+    case none
+    case daily
+    case weekdays
+    case selectedDates
+    case shifts
+    case afterNight
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .none:
+            return "Без"
+        case .daily:
+            return "Каждый день"
+        case .weekdays:
+            return "Дни недели"
+        case .selectedDates:
+            return "Даты"
+        case .shifts:
+            return "Смены"
+        case .afterNight:
+            return "После ночи"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .none:
+            return "Добавится только на выбранный день."
+        case .daily:
+            return "Будет появляться каждый день с выбранной даты."
+        case .afterNight:
+            return "Появится утром после ночной смены."
+        case .weekdays, .selectedDates, .shifts:
+            return ""
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .none:
+            return "1.circle.fill"
+        case .daily:
+            return "repeat"
+        case .weekdays:
+            return "calendar"
+        case .selectedDates:
+            return "calendar.badge.checkmark"
+        case .shifts:
+            return "moonphase.first.quarter"
+        case .afterNight:
+            return "moon.zzz.fill"
+        }
     }
 }
 
@@ -4316,6 +4587,23 @@ extension ActivityAccent {
 }
 
 extension ShiftKind {
+    var shortTitle: String {
+        switch self {
+        case .none:
+            return "Без"
+        case .morning:
+            return "Утро"
+        case .day:
+            return "День"
+        case .night:
+            return "Ночь"
+        case .recovery:
+            return "Отсып"
+        case .rest:
+            return "Выход"
+        }
+    }
+
     var statsShortTitle: String {
         switch self {
         case .none:

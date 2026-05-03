@@ -8,6 +8,10 @@ public protocol DayActivityStorage {
     func saveDayDetails(_ dayDetails: [DayDetails]) throws
     func loadShiftSchedule() throws -> ShiftSchedule?
     func saveShiftSchedule(_ shiftSchedule: ShiftSchedule?) throws
+    func loadRecurrenceRules() throws -> [DayActivityRecurrenceRule]
+    func saveRecurrenceRules(_ recurrenceRules: [DayActivityRecurrenceRule]) throws
+    func loadRecurrenceSkips() throws -> [DayActivityRecurrenceSkip]
+    func saveRecurrenceSkips(_ recurrenceSkips: [DayActivityRecurrenceSkip]) throws
 }
 
 public final class UserDefaultsActivityStorage: DayActivityStorage {
@@ -17,6 +21,8 @@ public final class UserDefaultsActivityStorage: DayActivityStorage {
     private let activitiesKey: String
     private let dayDetailsKey: String
     private let shiftScheduleKey: String
+    private let recurrenceRulesKey: String
+    private let recurrenceSkipsKey: String
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
@@ -25,6 +31,8 @@ public final class UserDefaultsActivityStorage: DayActivityStorage {
         self.activitiesKey = key
         self.dayDetailsKey = "\(key).day-details"
         self.shiftScheduleKey = "\(key).shift-schedule"
+        self.recurrenceRulesKey = "\(key).recurrence-rules"
+        self.recurrenceSkipsKey = "\(key).recurrence-skips"
     }
 
     public static func sharedAppGroupStorage(
@@ -77,6 +85,32 @@ public final class UserDefaultsActivityStorage: DayActivityStorage {
         let data = try encoder.encode(shiftSchedule)
         defaults.set(data, forKey: shiftScheduleKey)
     }
+
+    public func loadRecurrenceRules() throws -> [DayActivityRecurrenceRule] {
+        guard let data = defaults.data(forKey: recurrenceRulesKey) else {
+            return []
+        }
+
+        return try decoder.decode([DayActivityRecurrenceRule].self, from: data)
+    }
+
+    public func saveRecurrenceRules(_ recurrenceRules: [DayActivityRecurrenceRule]) throws {
+        let data = try encoder.encode(recurrenceRules)
+        defaults.set(data, forKey: recurrenceRulesKey)
+    }
+
+    public func loadRecurrenceSkips() throws -> [DayActivityRecurrenceSkip] {
+        guard let data = defaults.data(forKey: recurrenceSkipsKey) else {
+            return []
+        }
+
+        return try decoder.decode([DayActivityRecurrenceSkip].self, from: data)
+    }
+
+    public func saveRecurrenceSkips(_ recurrenceSkips: [DayActivityRecurrenceSkip]) throws {
+        let data = try encoder.encode(recurrenceSkips)
+        defaults.set(data, forKey: recurrenceSkipsKey)
+    }
 }
 
 public enum DayflowAppGroup {
@@ -120,24 +154,36 @@ public enum DayflowStorageMigration {
         let sharedActivities = try sharedStorage.loadActivities()
         let sharedDayDetails = try sharedStorage.loadDayDetails()
         let sharedShiftSchedule = try sharedStorage.loadShiftSchedule()
+        let sharedRecurrenceRules = try sharedStorage.loadRecurrenceRules()
+        let sharedRecurrenceSkips = try sharedStorage.loadRecurrenceSkips()
 
         guard sharedActivities.isEmpty,
               sharedDayDetails.isEmpty,
-              sharedShiftSchedule == nil else {
+              sharedShiftSchedule == nil,
+              sharedRecurrenceRules.isEmpty,
+              sharedRecurrenceSkips.isEmpty else {
             return false
         }
 
         let legacyActivities = try legacyStorage.loadActivities()
         let legacyDayDetails = try legacyStorage.loadDayDetails()
         let legacyShiftSchedule = try legacyStorage.loadShiftSchedule()
+        let legacyRecurrenceRules = try legacyStorage.loadRecurrenceRules()
+        let legacyRecurrenceSkips = try legacyStorage.loadRecurrenceSkips()
 
-        guard !legacyActivities.isEmpty || !legacyDayDetails.isEmpty || legacyShiftSchedule != nil else {
+        guard !legacyActivities.isEmpty
+                || !legacyDayDetails.isEmpty
+                || legacyShiftSchedule != nil
+                || !legacyRecurrenceRules.isEmpty
+                || !legacyRecurrenceSkips.isEmpty else {
             return false
         }
 
         try sharedStorage.saveActivities(legacyActivities)
         try sharedStorage.saveDayDetails(legacyDayDetails)
         try sharedStorage.saveShiftSchedule(legacyShiftSchedule)
+        try sharedStorage.saveRecurrenceRules(legacyRecurrenceRules)
+        try sharedStorage.saveRecurrenceSkips(legacyRecurrenceSkips)
         return true
     }
 }
@@ -146,6 +192,8 @@ public final class DayPlanStore: ObservableObject {
     @Published public private(set) var activities: [DayActivity]
     @Published public private(set) var dayDetails: [DayDetails]
     @Published public private(set) var shiftSchedule: ShiftSchedule?
+    @Published public private(set) var recurrenceRules: [DayActivityRecurrenceRule]
+    @Published public private(set) var recurrenceSkips: [DayActivityRecurrenceSkip]
 
     private let storage: DayActivityStorage
     private let calendar: Calendar
@@ -187,6 +235,8 @@ public final class DayPlanStore: ObservableObject {
         self.activities = normalizedActivities
         self.dayDetails = (try? storage.loadDayDetails())?.sorted { $0.dayID < $1.dayID } ?? []
         self.shiftSchedule = try? storage.loadShiftSchedule()
+        self.recurrenceRules = (try? storage.loadRecurrenceRules()) ?? []
+        self.recurrenceSkips = (try? storage.loadRecurrenceSkips()) ?? []
     }
 
     private static func normalizedActivities(_ activities: [DayActivity], fallbackDayID: String) -> [DayActivity] {
@@ -206,6 +256,11 @@ public final class DayPlanStore: ObservableObject {
     }
 
     public func activities(on date: Date, filteredBy filter: DayActivityCategory = .all) -> [DayActivity] {
+        _ = try? materializeRecurringActivities(on: date)
+        return storedActivities(on: date, filteredBy: filter)
+    }
+
+    private func storedActivities(on date: Date, filteredBy filter: DayActivityCategory = .all) -> [DayActivity] {
         let dayID = DayActivity.dayID(for: date, calendar: calendar)
         let todaysID = DayActivity.dayID(for: todayProvider(), calendar: calendar)
         let scopedActivities = activities.filter { activity in
@@ -310,6 +365,59 @@ public final class DayPlanStore: ObservableObject {
     }
 
     @discardableResult
+    public func addRecurringActivity(
+        _ newActivity: NewDayActivity,
+        pattern: DayActivityRecurrencePattern,
+        starting date: Date
+    ) throws -> DayActivityRecurrenceRule {
+        let rule = try DayActivityRecurrenceRule(activity: newActivity, pattern: pattern, starting: date, calendar: calendar)
+        let nextRules = recurrenceRules + [rule]
+        try storage.saveRecurrenceRules(nextRules)
+        recurrenceRules = nextRules
+        try materializeRecurringActivities(on: date)
+        return rule
+    }
+
+    @discardableResult
+    public func materializeRecurringActivities(on date: Date) throws -> Int {
+        let dayID = dayID(for: date)
+        let previousDate = calendar.date(byAdding: .day, value: -1, to: date) ?? date
+        let shift = effectiveShiftWithoutMaterializing(for: date)
+        let previousShift = effectiveShiftWithoutMaterializing(for: previousDate)
+        let skippedKeys = Set(recurrenceSkips.map(\.id))
+        let dayActivities = storedActivities(on: date)
+        var existingKeys = Set(dayActivities.map(Self.recurrenceDuplicateKey))
+        var generated: [DayActivity] = []
+
+        for rule in recurrenceRules {
+            guard rule.matches(date: date, shift: shift, previousShift: previousShift, calendar: calendar) else {
+                continue
+            }
+
+            let skip = DayActivityRecurrenceSkip(ruleID: rule.id, dayID: dayID)
+            guard !skippedKeys.contains(skip.id) else {
+                continue
+            }
+
+            let key = Self.recurrenceDuplicateKey(ruleID: rule.id, dayID: dayID)
+            guard existingKeys.insert(key).inserted else {
+                continue
+            }
+
+            generated.append(rule.activity(on: date, calendar: calendar))
+        }
+
+        guard !generated.isEmpty else {
+            return 0
+        }
+
+        let nextActivities = DayActivity.sorted(activities + generated)
+        try storage.saveActivities(nextActivities)
+        activities = nextActivities
+        return generated.count
+    }
+
+    @discardableResult
     public func repeatActivities(from sourceDate: Date, to targetDate: Date) throws -> Int {
         let sourceDayID = dayID(for: sourceDate)
         let targetDayID = dayID(for: targetDate)
@@ -378,12 +486,25 @@ public final class DayPlanStore: ObservableObject {
     }
 
     public func remove(_ id: UUID) throws {
+        var nextSkips = recurrenceSkips
+        if let activity = activities.first(where: { $0.id == id }),
+           let recurrenceRuleID = activity.recurrenceRuleID,
+           let dayID = activity.dayID {
+            let skip = DayActivityRecurrenceSkip(ruleID: recurrenceRuleID, dayID: dayID)
+            if !nextSkips.contains(skip) {
+                nextSkips.append(skip)
+                nextSkips.sort { $0.id < $1.id }
+                try storage.saveRecurrenceSkips(nextSkips)
+            }
+        }
+
         let nextActivities = activities.filter { $0.id != id }
         guard nextActivities.count != activities.count else {
             throw DayActivityValidationError.activityNotFound
         }
 
         try storage.saveActivities(nextActivities)
+        recurrenceSkips = nextSkips
         activities = nextActivities
     }
 
@@ -402,9 +523,13 @@ public final class DayPlanStore: ObservableObject {
         try storage.saveActivities([])
         try storage.saveDayDetails([])
         try storage.saveShiftSchedule(nil)
+        try storage.saveRecurrenceRules([])
+        try storage.saveRecurrenceSkips([])
         activities = []
         dayDetails = []
         shiftSchedule = nil
+        recurrenceRules = []
+        recurrenceSkips = []
     }
 
     public func setNote(_ note: String, for date: Date) throws {
@@ -468,11 +593,32 @@ public final class DayPlanStore: ObservableObject {
         return dayDetails.first { $0.dayID == dayID }
     }
 
+    private func effectiveShiftWithoutMaterializing(for date: Date) -> ShiftKind {
+        if let details = storedDetails(for: date), details.hasManualShift {
+            return details.shift
+        }
+
+        return shiftSchedule?.shift(on: date, calendar: calendar) ?? .none
+    }
+
     private func dayID(for date: Date) -> String {
         DayActivity.dayID(for: date, calendar: calendar)
     }
 
     private static func repeatDuplicateKey(_ activity: DayActivity) -> String {
         "\(activity.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())|\(activity.timeMinutes)"
+    }
+
+    private static func recurrenceDuplicateKey(_ activity: DayActivity) -> String {
+        if let recurrenceRuleID = activity.recurrenceRuleID,
+           let dayID = activity.dayID {
+            return recurrenceDuplicateKey(ruleID: recurrenceRuleID, dayID: dayID)
+        }
+
+        return "manual|\(repeatDuplicateKey(activity))"
+    }
+
+    private static func recurrenceDuplicateKey(ruleID: UUID, dayID: String) -> String {
+        "\(ruleID.uuidString)|\(dayID)"
     }
 }

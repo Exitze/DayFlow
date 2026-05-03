@@ -80,6 +80,9 @@ struct DayflowCalendarView: View {
                 onSave: { newActivity in
                     try store.add(newActivity, on: selectedDate)
                 },
+                onSaveRecurring: { newActivity, pattern in
+                    try store.addRecurringActivity(newActivity, pattern: pattern, starting: selectedDate)
+                },
                 onRepeatPreviousDay: repeatPreviousDayIntoSelection
             )
         }
@@ -1289,23 +1292,6 @@ private struct CalendarDay: Identifiable {
 }
 
 private extension ShiftKind {
-    var shortTitle: String {
-        switch self {
-        case .none:
-            return "Без"
-        case .morning:
-            return "Утро"
-        case .day:
-            return "День"
-        case .night:
-            return "Ночь"
-        case .recovery:
-            return "Отсып"
-        case .rest:
-            return "Выход"
-        }
-    }
-
     var badgeTitle: String {
         switch self {
         case .none:

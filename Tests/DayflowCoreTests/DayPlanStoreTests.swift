@@ -65,6 +65,99 @@ final class DayPlanStoreTests: XCTestCase {
         XCTAssertEqual(store.activities(on: today).map(\.title), ["Бег"])
     }
 
+    func testDailyRecurringActivityMaterializesForFutureDayOnce() throws {
+        let start = date(year: 2026, month: 5, day: 3)
+        let tomorrow = addingDays(1, to: start)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { start })
+        try store.addRecurringActivity(
+            NewDayActivity(title: "Вода", timeText: "10:00", detail: "Стакан", category: .body, icon: "drop.fill", accent: .sky),
+            pattern: .daily,
+            starting: start
+        )
+
+        XCTAssertEqual(store.activities(on: tomorrow).map(\.title), ["Вода"])
+        XCTAssertEqual(store.activities(on: tomorrow).map(\.title), ["Вода"])
+        XCTAssertEqual(store.activities(on: tomorrow).first?.recurrenceRuleID, store.recurrenceRules.first?.id)
+    }
+
+    func testWeekdayRecurringActivityOnlyMatchesSelectedWeekdays() throws {
+        let sunday = date(year: 2026, month: 5, day: 3)
+        let monday = addingDays(1, to: sunday)
+        let tuesday = addingDays(2, to: sunday)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { sunday })
+        try store.addRecurringActivity(
+            NewDayActivity(title: "Зал", timeText: "20:00", detail: "Силовая", category: .body, icon: "dumbbell.fill", accent: .lime),
+            pattern: .weekdays([1, 3]),
+            starting: sunday
+        )
+
+        XCTAssertEqual(store.activities(on: monday).map(\.title), ["Зал"])
+        XCTAssertEqual(store.activities(on: tuesday), [])
+    }
+
+    func testSelectedDatesRecurringActivityOnlyMatchesChosenDates() throws {
+        let start = date(year: 2026, month: 5, day: 3)
+        let selected = addingDays(2, to: start)
+        let skipped = addingDays(3, to: start)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { start })
+        try store.addRecurringActivity(
+            NewDayActivity(title: "Массаж", timeText: "18:00", detail: "Запись", category: .personal, icon: "sparkles", accent: .rose),
+            pattern: .selectedDates([DayActivity.dayID(for: selected, calendar: testCalendar)]),
+            starting: start
+        )
+
+        XCTAssertEqual(store.activities(on: selected).map(\.title), ["Массаж"])
+        XCTAssertEqual(store.activities(on: skipped), [])
+    }
+
+    func testShiftRecurringActivityMatchesEffectiveShift() throws {
+        let start = date(year: 2026, month: 5, day: 3)
+        let restDay = addingDays(2, to: start)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { start })
+        try store.setShiftSchedule(.makePreset(.twoTwo, starting: start, calendar: testCalendar))
+        try store.addRecurringActivity(
+            NewDayActivity(title: "Восстановление", timeText: "12:00", detail: "Легкий день", category: .personal, icon: "leaf.fill", accent: .lime),
+            pattern: .shiftKinds([.rest]),
+            starting: start
+        )
+
+        XCTAssertEqual(store.activities(on: start), [])
+        XCTAssertEqual(store.activities(on: restDay).map(\.title), ["Восстановление"])
+    }
+
+    func testAfterNightRecurringActivityMatchesDayAfterNightShift() throws {
+        let start = date(year: 2026, month: 5, day: 3)
+        let nightDay = addingDays(1, to: start)
+        let recoveryDay = addingDays(2, to: start)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { start })
+        try store.setShiftSchedule(.makePreset(.dayNightRest, starting: start, calendar: testCalendar))
+        try store.addRecurringActivity(
+            NewDayActivity(title: "Отсып", timeText: "11:00", detail: "Без будильника", category: .personal, icon: "moon.zzz.fill", accent: .rose),
+            pattern: .afterNight,
+            starting: start
+        )
+
+        XCTAssertEqual(store.activities(on: nightDay), [])
+        XCTAssertEqual(store.activities(on: recoveryDay).map(\.title), ["Отсып"])
+    }
+
+    func testDeletingMaterializedRecurringActivitySkipsOnlyThatDay() throws {
+        let start = date(year: 2026, month: 5, day: 3)
+        let tomorrow = addingDays(1, to: start)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { start })
+        try store.addRecurringActivity(
+            NewDayActivity(title: "Вода", timeText: "10:00", detail: "Стакан", category: .body, icon: "drop.fill", accent: .sky),
+            pattern: .daily,
+            starting: start
+        )
+        let activity = try XCTUnwrap(store.activities(on: start).first)
+
+        try store.remove(activity.id)
+
+        XCTAssertEqual(store.activities(on: start), [])
+        XCTAssertEqual(store.activities(on: tomorrow).map(\.title), ["Вода"])
+    }
+
     func testUserDefaultsStorageMigratesLegacyDataToSharedStorage() throws {
         let legacyDefaults = makeIsolatedDefaults()
         let sharedDefaults = makeIsolatedDefaults()
@@ -943,6 +1036,10 @@ private final class MemoryActivityStorage: DayActivityStorage {
     var dayDetailsToLoad: [DayDetails] = []
     var savedShiftSchedule: ShiftSchedule?
     var shiftScheduleToLoad: ShiftSchedule?
+    var savedRecurrenceRules: [DayActivityRecurrenceRule] = []
+    var recurrenceRulesToLoad: [DayActivityRecurrenceRule] = []
+    var savedRecurrenceSkips: [DayActivityRecurrenceSkip] = []
+    var recurrenceSkipsToLoad: [DayActivityRecurrenceSkip] = []
 
     func loadActivities() throws -> [DayActivity] {
         activitiesToLoad
@@ -969,6 +1066,24 @@ private final class MemoryActivityStorage: DayActivityStorage {
     func saveShiftSchedule(_ shiftSchedule: ShiftSchedule?) throws {
         savedShiftSchedule = shiftSchedule
         shiftScheduleToLoad = shiftSchedule
+    }
+
+    func loadRecurrenceRules() throws -> [DayActivityRecurrenceRule] {
+        recurrenceRulesToLoad
+    }
+
+    func saveRecurrenceRules(_ recurrenceRules: [DayActivityRecurrenceRule]) throws {
+        savedRecurrenceRules = recurrenceRules
+        recurrenceRulesToLoad = recurrenceRules
+    }
+
+    func loadRecurrenceSkips() throws -> [DayActivityRecurrenceSkip] {
+        recurrenceSkipsToLoad
+    }
+
+    func saveRecurrenceSkips(_ recurrenceSkips: [DayActivityRecurrenceSkip]) throws {
+        savedRecurrenceSkips = recurrenceSkips
+        recurrenceSkipsToLoad = recurrenceSkips
     }
 }
 

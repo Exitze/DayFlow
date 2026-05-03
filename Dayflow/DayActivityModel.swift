@@ -499,6 +499,7 @@ public enum DayActivityValidationError: Error, Equatable {
     case invalidTime
     case invalidCategory
     case activityNotFound
+    case invalidRecurrence
 }
 
 public struct DayflowQuickActivityTemplate: Equatable, Identifiable {
@@ -671,6 +672,127 @@ public enum DayflowDeepLink {
     }
 }
 
+public enum DayActivityRecurrencePattern: Codable, Equatable {
+    case daily
+    case weekdays([Int])
+    case selectedDates([String])
+    case shiftKinds([ShiftKind])
+    case afterNight
+}
+
+public struct DayActivityRecurrenceRule: Codable, Equatable, Identifiable {
+    public var id: UUID
+    public var title: String
+    public var timeMinutes: Int
+    public var detail: String
+    public var category: DayActivityCategory
+    public var icon: String
+    public var accent: ActivityAccent
+    public var pattern: DayActivityRecurrencePattern
+    public var startDayID: String
+    public var isEnabled: Bool
+
+    public init(
+        id: UUID = UUID(),
+        title: String,
+        timeMinutes: Int,
+        detail: String,
+        category: DayActivityCategory,
+        icon: String,
+        accent: ActivityAccent,
+        pattern: DayActivityRecurrencePattern,
+        startDayID: String,
+        isEnabled: Bool = true
+    ) {
+        self.id = id
+        self.title = title
+        self.timeMinutes = timeMinutes
+        self.detail = detail
+        self.category = category
+        self.icon = icon
+        self.accent = accent
+        self.pattern = pattern
+        self.startDayID = startDayID
+        self.isEnabled = isEnabled
+    }
+
+    public init(
+        activity: NewDayActivity,
+        pattern: DayActivityRecurrencePattern,
+        starting date: Date,
+        calendar: Calendar = .current
+    ) throws {
+        let parsed = try DayActivity(activity)
+        self.init(
+            title: parsed.title,
+            timeMinutes: parsed.timeMinutes,
+            detail: parsed.detail,
+            category: parsed.category,
+            icon: parsed.icon,
+            accent: parsed.accent,
+            pattern: pattern,
+            startDayID: DayActivity.dayID(for: date, calendar: calendar)
+        )
+    }
+
+    public func matches(
+        date: Date,
+        shift: ShiftKind,
+        previousShift: ShiftKind,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard isEnabled else {
+            return false
+        }
+
+        let currentDayID = DayActivity.dayID(for: date, calendar: calendar)
+        switch pattern {
+        case .selectedDates(let dayIDs):
+            return dayIDs.contains(currentDayID)
+        case .daily:
+            return currentDayID >= startDayID
+        case .weekdays(let weekdays):
+            return currentDayID >= startDayID && weekdays.contains(Self.isoWeekday(for: date, calendar: calendar))
+        case .shiftKinds(let shifts):
+            return currentDayID >= startDayID && shifts.contains(shift)
+        case .afterNight:
+            return currentDayID >= startDayID && previousShift == .night
+        }
+    }
+
+    public func activity(on date: Date, calendar: Calendar = .current) -> DayActivity {
+        DayActivity(
+            title: title,
+            timeMinutes: timeMinutes,
+            detail: detail,
+            category: category,
+            icon: icon,
+            accent: accent,
+            dayID: DayActivity.dayID(for: date, calendar: calendar),
+            recurrenceRuleID: id
+        )
+    }
+
+    public static func isoWeekday(for date: Date, calendar: Calendar = .current) -> Int {
+        let weekday = calendar.component(.weekday, from: date)
+        return weekday == 1 ? 7 : weekday - 1
+    }
+}
+
+public struct DayActivityRecurrenceSkip: Codable, Equatable, Identifiable {
+    public var ruleID: UUID
+    public var dayID: String
+
+    public var id: String {
+        "\(ruleID.uuidString)|\(dayID)"
+    }
+
+    public init(ruleID: UUID, dayID: String) {
+        self.ruleID = ruleID
+        self.dayID = dayID
+    }
+}
+
 public struct NewDayActivity: Equatable {
     public var title: String
     public var timeText: String
@@ -709,6 +831,7 @@ public struct DayActivity: Codable, Equatable, Identifiable {
     public var accent: ActivityAccent
     public var isCompleted: Bool
     public var dayID: String?
+    public var recurrenceRuleID: UUID?
 
     public var timeText: String {
         Self.timeText(from: timeMinutes)
@@ -723,7 +846,8 @@ public struct DayActivity: Codable, Equatable, Identifiable {
         icon: String,
         accent: ActivityAccent,
         isCompleted: Bool = false,
-        dayID: String? = nil
+        dayID: String? = nil,
+        recurrenceRuleID: UUID? = nil
     ) {
         self.id = id
         self.title = title
@@ -734,6 +858,7 @@ public struct DayActivity: Codable, Equatable, Identifiable {
         self.accent = accent
         self.isCompleted = isCompleted
         self.dayID = dayID
+        self.recurrenceRuleID = recurrenceRuleID
     }
 
     public init(_ newActivity: NewDayActivity) throws {
