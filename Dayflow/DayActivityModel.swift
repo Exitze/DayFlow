@@ -1423,6 +1423,31 @@ public struct ShiftWorkdaySummary: Equatable, Identifiable {
     }
 }
 
+public struct ShiftPayrollBreakdown: Equatable, Identifiable {
+    public var id: ShiftKind { shift }
+    public var shift: ShiftKind
+    public var dayCount: Int
+    public var totalMinutes: Int
+    public var overtimeMinutes: Int
+    public var estimatedPay: Double
+
+    public var hoursText: String {
+        ShiftWorkdaySummary.hoursText(totalMinutes)
+    }
+
+    public var payText: String {
+        "\(Int(estimatedPay.rounded())) ₽"
+    }
+
+    public init(shift: ShiftKind, days: [ShiftWorkdaySummary]) {
+        self.shift = shift
+        self.dayCount = days.count
+        self.totalMinutes = days.reduce(0) { $0 + $1.totalMinutes }
+        self.overtimeMinutes = days.reduce(0) { $0 + $1.overtimeMinutes }
+        self.estimatedPay = days.reduce(0) { $0 + $1.estimatedPay }
+    }
+}
+
 public struct ShiftMonthPayrollSummary: Equatable {
     public var startDate: Date
     public var endDate: Date
@@ -1446,6 +1471,22 @@ public struct ShiftMonthPayrollSummary: Equatable {
 
     public var conflicts: [ShiftConflict] {
         days.flatMap(\.conflicts)
+    }
+
+    public var shiftBreakdown: [ShiftPayrollBreakdown] {
+        ShiftKind.allCases.compactMap { shift in
+            guard shift != .none else {
+                return nil
+            }
+
+            let matchingDays = days.filter { $0.shift == shift }
+            guard !matchingDays.isEmpty else {
+                return nil
+            }
+
+            let breakdown = ShiftPayrollBreakdown(shift: shift, days: matchingDays)
+            return breakdown.totalMinutes > 0 || breakdown.estimatedPay > 0 ? breakdown : nil
+        }
     }
 
     public init(startDate: Date, endDate: Date, days: [ShiftWorkdaySummary]) {

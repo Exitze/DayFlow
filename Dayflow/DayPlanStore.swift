@@ -386,13 +386,17 @@ public final class DayPlanStore: ObservableObject {
         let hoursText = ShiftWorkdaySummary.hoursText(summary.totalMinutes)
         let payText = "\(Int(summary.estimatedPay.rounded())) ₽"
 
-        return [
+        let breakdownLines = summary.shiftBreakdown.map {
+            "\($0.shift.title): \($0.dayCount) смены · \($0.hoursText) · \($0.payText)"
+        }
+
+        return ([
             "Dayflow · \(monthText)",
             "\(summary.workedDays) смены",
             "Часы: \(hoursText)",
             "Оплата: \(payText)",
             "Конфликты: \(summary.conflicts.count)"
-        ].joined(separator: "\n")
+        ] + breakdownLines).joined(separator: "\n")
     }
 
     public func statsSummary(from startDate: Date, to endDate: Date) -> DayStatsSummary {

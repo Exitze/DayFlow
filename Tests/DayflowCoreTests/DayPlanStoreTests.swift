@@ -1062,6 +1062,26 @@ final class DayPlanStoreTests: XCTestCase {
         XCTAssertEqual(payrollSummary.estimatedPay, 28_800, accuracy: 0.01)
     }
 
+    func testShiftPayrollSummaryBreaksPayDownByShiftKind() throws {
+        let start = date(year: 2026, month: 5, day: 2)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { start })
+        var schedule = ShiftSchedule.makePreset(.dayNightRest, starting: start, calendar: testCalendar)
+        schedule.paySettings[.day] = ShiftPaySettings(startMinutes: 8 * 60, endMinutes: 20 * 60, hourlyRate: 1000)
+        try store.setShiftSchedule(schedule)
+
+        let summary = store.shiftPayrollSummary(from: start, to: addingDays(3, to: start))
+        let dayBreakdown = try XCTUnwrap(summary.shiftBreakdown.first { $0.shift == .day })
+        let nightBreakdown = try XCTUnwrap(summary.shiftBreakdown.first { $0.shift == .night })
+
+        XCTAssertEqual(dayBreakdown.dayCount, 1)
+        XCTAssertEqual(dayBreakdown.totalMinutes, 12 * 60)
+        XCTAssertEqual(dayBreakdown.estimatedPay, 14_000, accuracy: 0.01)
+        XCTAssertEqual(nightBreakdown.dayCount, 1)
+        XCTAssertEqual(nightBreakdown.totalMinutes, 12 * 60)
+        XCTAssertEqual(nightBreakdown.estimatedPay, 16_800, accuracy: 0.01)
+        XCTAssertNil(summary.shiftBreakdown.first { $0.shift == .rest })
+    }
+
     func testRestShiftSummaryHasZeroPaidHoursByDefault() throws {
         let start = date(year: 2026, month: 5, day: 2)
         let restDay = addingDays(3, to: start)

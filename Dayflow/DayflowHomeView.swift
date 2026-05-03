@@ -1892,14 +1892,18 @@ private struct DayflowStatsView: View {
 
     private var payrollExportText: String {
         let summary = payrollSummary
-        return [
+        let breakdownLines = summary.shiftBreakdown.map {
+            "\($0.shift.title): \($0.dayCount) смены · \($0.hoursText) · \($0.payText)"
+        }
+
+        return ([
             "Dayflow · \(payrollPeriodTitle)",
             "\(summary.workedDays) смены",
             "Часы: \(ShiftWorkdaySummary.hoursText(summary.totalMinutes))",
             "Сверх: \(ShiftWorkdaySummary.hoursText(summary.overtimeMinutes))",
             "Оплата: \(Int(summary.estimatedPay.rounded())) ₽",
             "Конфликты: \(summary.conflicts.count)"
-        ].joined(separator: "\n")
+        ] + breakdownLines).joined(separator: "\n")
     }
 
     private var monthOptions: [StatsMonthOption] {
@@ -2542,6 +2546,14 @@ private struct StatsPayrollBlock: View {
                 PayrollMetricCell(title: "Конфл.", value: "\(summary.conflicts.count)", accent: summary.conflicts.isEmpty ? Color.dayflowPaper.opacity(0.22) : Color.dayflowRose)
             }
 
+            if !summary.shiftBreakdown.isEmpty {
+                VStack(spacing: 9) {
+                    ForEach(summary.shiftBreakdown) { breakdown in
+                        PayrollShiftBreakdownRow(breakdown: breakdown)
+                    }
+                }
+            }
+
             if let selectedSummary {
                 HStack(spacing: 12) {
                     Text(selectedSummary.shift.statsShortTitle)
@@ -2617,6 +2629,49 @@ private struct StatsPayrollBlock: View {
 
     private var conflictText: String {
         summary.conflicts.prefix(2).map { "\($0.activityTimeText) \($0.activityTitle)" }.joined(separator: " · ")
+    }
+}
+
+private struct PayrollShiftBreakdownRow: View {
+    let breakdown: ShiftPayrollBreakdown
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(breakdown.shift.statsShortTitle)
+                .font(.dfDisplaySmall(15))
+                .foregroundStyle(breakdown.shift == .night ? Color.dayflowPaper : Color.dayflowBlack)
+                .frame(width: 42, height: 42)
+                .background(Circle().fill(breakdown.shift.statsColor))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(breakdown.shift.title)
+                    .font(.dfDisplaySmall(17))
+                    .foregroundStyle(Color.dayflowPaper)
+                    .lineLimit(1)
+
+                Text("\(breakdown.dayCount) смены · \(breakdown.hoursText)")
+                    .font(.dfBodyBold(11))
+                    .foregroundStyle(Color.dayflowMist)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Text(breakdown.payText)
+                .font(.dfDisplaySmall(17))
+                .foregroundStyle(Color.dayflowLime)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+        .padding(13)
+        .background(
+            RoundedRectangle(cornerRadius: 23, style: .continuous)
+                .fill(Color.dayflowPanel.opacity(0.76))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 23, style: .continuous)
+                .stroke(Color.dayflowPaper.opacity(0.09), lineWidth: 1)
+        )
     }
 }
 
