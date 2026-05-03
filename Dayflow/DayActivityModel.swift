@@ -557,7 +557,7 @@ public enum AppLegalDocument: String, CaseIterable, Equatable, Identifiable {
                 ),
                 AppLegalSection(
                     title: "Коротко",
-                    body: "Dayflow хранит активности, заметки, смены, график и настройки только локально на устройстве через UserDefaults. Приложение не отправляет эти данные на сервер, не продает их и не использует трекинг."
+                    body: "Dayflow хранит активности, заметки, смены, график, настройки и настройки уведомлений только локально на устройстве через UserDefaults. Приложение не отправляет эти данные на сервер, не продает их и не использует трекинг."
                 ),
                 AppLegalSection(
                     title: "Какие данные есть в приложении",
@@ -566,6 +566,10 @@ public enum AppLegalDocument: String, CaseIterable, Equatable, Identifiable {
                 AppLegalSection(
                     title: "Удаление данных",
                     body: "Данные можно удалить в настройках Dayflow: очистить выполненные активности, очистить календарные детали или сбросить все локальные данные приложения."
+                ),
+                AppLegalSection(
+                    title: "Уведомления",
+                    body: "Если пользователь включает уведомления, Dayflow создает локальные напоминания на устройстве через Apple UserNotifications. Расписание уведомлений строится из локальных активностей и смен и не отправляется на сервер."
                 ),
                 AppLegalSection(
                     title: "Аккаунты и аналитика",
@@ -616,6 +620,10 @@ public enum AppLegalDocument: String, CaseIterable, Equatable, Identifiable {
                 AppLegalSection(
                     title: "Локальные данные",
                     body: "Dayflow хранит данные на устройстве. Если активность, заметка или смена не отображается, сначала проверь выбранный день календаря и текущий фильтр."
+                ),
+                AppLegalSection(
+                    title: "Уведомления",
+                    body: "Если напоминания не приходят, проверь разрешение Dayflow в настройках iOS: Settings → Notifications → Dayflow. Уведомления локальные, поэтому серверной доставки или удаленной рассылки нет."
                 )
             ]
         }

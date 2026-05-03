@@ -22,12 +22,14 @@ let package = Package(
                 "DayflowCalendarView.swift",
                 "Dayflow.entitlements",
                 "DayflowHomeView.swift",
+                "DayflowNotificationScheduler.swift",
                 "Info.plist",
                 "LaunchScreen.storyboard",
                 "PrivacyInfo.xcprivacy"
             ],
             sources: [
                 "DayActivityModel.swift",
+                "DayflowNotificationPlan.swift",
                 "DayPlanStore.swift",
                 "DayflowWidgetSnapshot.swift"
             ]

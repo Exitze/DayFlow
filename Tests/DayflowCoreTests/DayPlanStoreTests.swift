@@ -126,6 +126,7 @@ final class DayPlanStoreTests: XCTestCase {
         XCTAssertTrue(body.contains("не отправляет"))
         XCTAssertTrue(body.contains("не использует трекинг"))
         XCTAssertTrue(body.contains("можно удалить"))
+        XCTAssertTrue(body.contains("локальные напоминания"))
     }
 
     func testLegalDocumentsExposePublicReleaseUrls() throws {
@@ -140,6 +141,154 @@ final class DayPlanStoreTests: XCTestCase {
         XCTAssertTrue(body.contains("Exitze@icloud.com"))
         XCTAssertTrue(body.contains("Dayflow"))
         XCTAssertFalse(body.contains("App Store Connect"))
+    }
+
+    func testNotificationPlanReturnsNoRequestsWhenNotificationsAreDisabled() throws {
+        let today = date(year: 2026, month: 5, day: 3)
+        let activity = DayActivity(
+            title: "Бег",
+            timeMinutes: 420,
+            detail: "Парк",
+            category: .body,
+            icon: "figure.run",
+            accent: .sky,
+            dayID: DayActivity.dayID(for: today, calendar: testCalendar)
+        )
+
+        let plan = DayflowNotificationPlanBuilder.makePlan(
+            settings: .defaults,
+            activities: [activity],
+            dayDetails: [],
+            shiftSchedule: nil,
+            now: hour(6, minute: 0, on: today),
+            calendar: testCalendar
+        )
+
+        XCTAssertEqual(plan, [])
+    }
+
+    func testMorningNotificationSummarizesRealTodayPlanAndShift() throws {
+        let today = date(year: 2026, month: 5, day: 3)
+        let settings = DayflowNotificationSettings(
+            isEnabled: true,
+            morningPlanEnabled: true,
+            activityRemindersEnabled: false,
+            shiftReminderEnabled: false,
+            eveningReviewEnabled: false
+        )
+        let activities = [
+            DayActivity(title: "Бег", timeMinutes: 420, detail: "Парк", category: .body, icon: "figure.run", accent: .sky, dayID: DayActivity.dayID(for: today, calendar: testCalendar)),
+            DayActivity(title: "Зал", timeMinutes: 1200, detail: "Силовая", category: .body, icon: "dumbbell.fill", accent: .lime, dayID: DayActivity.dayID(for: today, calendar: testCalendar))
+        ]
+        let schedule = ShiftSchedule.makePreset(.twoTwo, starting: today, calendar: testCalendar)
+
+        let plan = DayflowNotificationPlanBuilder.makePlan(
+            settings: settings,
+            activities: activities,
+            dayDetails: [],
+            shiftSchedule: schedule,
+            now: hour(6, minute: 0, on: today),
+            calendar: testCalendar
+        )
+
+        let request = try XCTUnwrap(plan.first { $0.kind == .morningPlan })
+        XCTAssertEqual(request.date, hour(8, minute: 30, on: today))
+        XCTAssertTrue(request.title.contains("План дня"))
+        XCTAssertTrue(request.body.contains("2 дела"))
+        XCTAssertTrue(request.body.contains("Бег"))
+        XCTAssertTrue(request.body.contains("Смена: День"))
+    }
+
+    func testActivityReminderSchedulesBeforeRealActivityTime() throws {
+        let today = date(year: 2026, month: 5, day: 3)
+        let settings = DayflowNotificationSettings(
+            isEnabled: true,
+            morningPlanEnabled: false,
+            activityRemindersEnabled: true,
+            shiftReminderEnabled: false,
+            eveningReviewEnabled: false,
+            activityLeadMinutes: 15
+        )
+        let activity = DayActivity(
+            title: "Бег",
+            timeMinutes: 420,
+            detail: "Парк",
+            category: .body,
+            icon: "figure.run",
+            accent: .sky,
+            dayID: DayActivity.dayID(for: today, calendar: testCalendar)
+        )
+
+        let plan = DayflowNotificationPlanBuilder.makePlan(
+            settings: settings,
+            activities: [activity],
+            dayDetails: [],
+            shiftSchedule: nil,
+            now: hour(6, minute: 0, on: today),
+            calendar: testCalendar
+        )
+
+        let request = try XCTUnwrap(plan.first { $0.kind == .activityReminder })
+        XCTAssertEqual(request.date, hour(6, minute: 45, on: today))
+        XCTAssertTrue(request.title.contains("Бег"))
+        XCTAssertTrue(request.title.contains("15 мин"))
+        XCTAssertTrue(request.body.contains("Парк"))
+    }
+
+    func testShiftReminderUsesAutomaticTomorrowShift() throws {
+        let today = date(year: 2026, month: 5, day: 3)
+        let settings = DayflowNotificationSettings(
+            isEnabled: true,
+            morningPlanEnabled: false,
+            activityRemindersEnabled: false,
+            shiftReminderEnabled: true,
+            eveningReviewEnabled: false
+        )
+        let schedule = ShiftSchedule.makePreset(.twoDayTwoNight, starting: today, calendar: testCalendar)
+
+        let plan = DayflowNotificationPlanBuilder.makePlan(
+            settings: settings,
+            activities: [],
+            dayDetails: [],
+            shiftSchedule: schedule,
+            now: hour(10, minute: 0, on: today),
+            calendar: testCalendar
+        )
+
+        let request = try XCTUnwrap(plan.first { $0.kind == .shiftReminder })
+        XCTAssertEqual(request.date, hour(19, minute: 0, on: today))
+        XCTAssertTrue(request.title.contains("Завтра"))
+        XCTAssertTrue(request.body.contains("День"))
+        XCTAssertTrue(request.body.contains("2Д/2Н"))
+    }
+
+    func testEveningReviewCountsOpenActivities() throws {
+        let today = date(year: 2026, month: 5, day: 3)
+        let settings = DayflowNotificationSettings(
+            isEnabled: true,
+            morningPlanEnabled: false,
+            activityRemindersEnabled: false,
+            shiftReminderEnabled: false,
+            eveningReviewEnabled: true
+        )
+        let activities = [
+            DayActivity(title: "Бег", timeMinutes: 420, detail: "Парк", category: .body, icon: "figure.run", accent: .sky, isCompleted: true, dayID: DayActivity.dayID(for: today, calendar: testCalendar)),
+            DayActivity(title: "Зал", timeMinutes: 1200, detail: "Силовая", category: .body, icon: "dumbbell.fill", accent: .lime, dayID: DayActivity.dayID(for: today, calendar: testCalendar))
+        ]
+
+        let plan = DayflowNotificationPlanBuilder.makePlan(
+            settings: settings,
+            activities: activities,
+            dayDetails: [],
+            shiftSchedule: nil,
+            now: hour(19, minute: 0, on: today),
+            calendar: testCalendar
+        )
+
+        let request = try XCTUnwrap(plan.first { $0.kind == .eveningReview })
+        XCTAssertEqual(request.date, hour(21, minute: 30, on: today))
+        XCTAssertTrue(request.body.contains("1 открыто"))
+        XCTAssertTrue(request.body.contains("Зал"))
     }
 
     func testStoreStartsEmptyWhenStorageHasNoActivities() throws {
@@ -619,6 +768,12 @@ private func date(year: Int, month: Int, day: Int) -> Date {
 
 private func addingDays(_ days: Int, to date: Date) -> Date {
     Calendar(identifier: .gregorian).date(byAdding: .day, value: days, to: date)!
+}
+
+private func hour(_ hour: Int, minute: Int, on date: Date) -> Date {
+    let calendar = testCalendar
+    let start = calendar.startOfDay(for: date)
+    return calendar.date(byAdding: .minute, value: hour * 60 + minute, to: start)!
 }
 
 private var testCalendar: Calendar {

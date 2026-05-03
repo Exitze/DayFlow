@@ -37,10 +37,12 @@ enum DayflowTab: CaseIterable {
 
 struct DayflowHomeView: View {
     @StateObject private var store = DayPlanStore()
+    @StateObject private var notificationController = DayflowNotificationController()
     @State private var isAlive = false
     @State private var selectedTab: DayflowTab = .home
     @State private var selectedFilter: DayActivityCategory = .all
     @State private var isShowingAddActivity = false
+    @State private var isShowingNotificationSettings = false
     @State private var isShowingStoreError = false
     @State private var storeErrorMessage = ""
     @AppStorage("dayflow.settings.liveBackdrop") private var liveBackdrop = true
@@ -69,7 +71,12 @@ struct DayflowHomeView: View {
                         case .home:
                             ScrollView(.vertical, showsIndicators: false) {
                                 VStack(alignment: .leading, spacing: 20) {
-                                    HomeTopBar(date: today)
+                                    HomeTopBar(
+                                        date: today,
+                                        notificationState: notificationController.permissionState,
+                                        notificationsEnabled: notificationController.settings.isEnabled,
+                                        onNotificationTap: { isShowingNotificationSettings = true }
+                                    )
                                         .frame(width: contentWidth)
                                         .padding(.top, 12)
 
@@ -108,11 +115,13 @@ struct DayflowHomeView: View {
                         case .settings:
                             DayflowSettingsView(
                                 store: store,
+                                notificationController: notificationController,
                                 contentWidth: contentWidth,
                                 liveBackdrop: $liveBackdrop,
                                 showBackdropPhoto: $showBackdropPhoto,
                                 showFineGrid: $showFineGrid,
-                                onOpenCalendar: { selectedTab = .calendar }
+                                onOpenCalendar: { selectedTab = .calendar },
+                                onOpenNotifications: { isShowingNotificationSettings = true }
                             )
                                 .frame(width: contentWidth)
                                 .frame(maxWidth: .infinity, alignment: .center)
@@ -129,20 +138,28 @@ struct DayflowHomeView: View {
                 withAnimation(.easeInOut(duration: 9).repeatForever(autoreverses: true)) {
                     isAlive = true
                 }
+                notificationController.refreshStatus()
+                notificationController.rescheduleIfNeeded(store: store)
             }
             .onReceive(store.$activities.dropFirst()) { _ in
                 WidgetCenter.shared.reloadAllTimelines()
+                notificationController.rescheduleIfNeeded(store: store)
             }
             .onReceive(store.$dayDetails.dropFirst()) { _ in
                 WidgetCenter.shared.reloadAllTimelines()
+                notificationController.rescheduleIfNeeded(store: store)
             }
             .onReceive(store.$shiftSchedule.dropFirst()) { _ in
                 WidgetCenter.shared.reloadAllTimelines()
+                notificationController.rescheduleIfNeeded(store: store)
             }
             .sheet(isPresented: $isShowingAddActivity) {
                 NewActivitySheet { newActivity in
                     try store.add(newActivity, on: Date())
                 }
+            }
+            .sheet(isPresented: $isShowingNotificationSettings) {
+                DayflowNotificationSettingsSheet(store: store, controller: notificationController)
             }
             .alert("Не удалось сохранить", isPresented: $isShowingStoreError) {
                 Button("Ок", role: .cancel) {}
@@ -264,6 +281,9 @@ private struct FineGrid: View {
 
 private struct HomeTopBar: View {
     let date: Date
+    let notificationState: DayflowNotificationPermissionState
+    let notificationsEnabled: Bool
+    let onNotificationTap: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
@@ -281,17 +301,22 @@ private struct HomeTopBar: View {
 
             Spacer()
 
-            Button(action: {}) {
-                Image(systemName: "bell")
+            Button(action: onNotificationTap) {
+                Image(systemName: isActive ? "bell.badge.fill" : "bell")
                     .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(Color.dayflowPaper.opacity(0.88))
+                    .foregroundStyle(isActive ? Color.dayflowBlack : Color.dayflowPaper.opacity(0.88))
                     .frame(width: 46, height: 46)
-                    .background(Circle().fill(Color.dayflowPanel.opacity(0.72)))
-                    .overlay(Circle().stroke(Color.dayflowPaper.opacity(0.12), lineWidth: 1))
+                    .background(Circle().fill(isActive ? Color.dayflowLime : Color.dayflowPanel.opacity(0.72)))
+                    .overlay(Circle().stroke(isActive ? Color.dayflowLime.opacity(0.34) : Color.dayflowPaper.opacity(0.12), lineWidth: 1))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Уведомления")
+            .accessibilityValue(isActive ? "Включены" : "Выключены")
         }
+    }
+
+    private var isActive: Bool {
+        notificationsEnabled && notificationState.allowsScheduling
     }
 
     private var formattedDate: String {
@@ -1618,11 +1643,13 @@ private struct StatsShiftBlock: View {
 
 private struct DayflowSettingsView: View {
     @ObservedObject var store: DayPlanStore
+    @ObservedObject var notificationController: DayflowNotificationController
     let contentWidth: CGFloat
     @Binding var liveBackdrop: Bool
     @Binding var showBackdropPhoto: Bool
     @Binding var showFineGrid: Bool
     let onOpenCalendar: () -> Void
+    let onOpenNotifications: () -> Void
 
     @State private var pendingAction: SettingsDataAction?
     @State private var errorText: String?
@@ -1654,6 +1681,12 @@ private struct DayflowSettingsView: View {
                     currentShift: store.effectiveShift(for: today),
                     onOpenCalendar: onOpenCalendar,
                     onClearSchedule: clearSchedule
+                )
+
+                SettingsNotificationsBlock(
+                    controller: notificationController,
+                    onOpenNotifications: onOpenNotifications,
+                    onSendTest: { notificationController.sendTestNotification(store: store) }
                 )
 
                 SettingsLegalBlock { document in
@@ -2043,6 +2076,463 @@ private struct SettingsScheduleBlock: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+}
+
+private struct SettingsNotificationsBlock: View {
+    @ObservedObject var controller: DayflowNotificationController
+    let onOpenNotifications: () -> Void
+    let onSendTest: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Уведомления")
+                    .font(.dfDisplaySmall(22))
+                    .foregroundStyle(Color.dayflowPaper)
+
+                Spacer()
+
+                Text(controller.statusTitle)
+                    .font(.dfBodyBold(12))
+                    .foregroundStyle(controller.isActive ? Color.dayflowLime : Color.dayflowMist)
+            }
+
+            HStack(spacing: 14) {
+                Image(systemName: controller.isActive ? "bell.badge.fill" : "bell.fill")
+                    .font(.system(size: 16, weight: .black))
+                    .foregroundStyle(controller.isActive ? Color.dayflowBlack : Color.dayflowPaper)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(controller.isActive ? Color.dayflowLime : Color.dayflowPanel.opacity(0.96)))
+                    .overlay(Circle().stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(controller.isActive ? "\(controller.pendingCount) в расписании" : "Умные напоминания")
+                        .font(.dfDisplaySmall(17))
+                        .foregroundStyle(Color.dayflowPaper)
+
+                    Text(controller.statusSubtitle)
+                        .font(.dfBody(12))
+                        .foregroundStyle(Color.dayflowMist)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+
+                Spacer(minLength: 8)
+
+                Button(action: onOpenNotifications) {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 15, weight: .black))
+                        .foregroundStyle(Color.dayflowBlack)
+                        .frame(width: 42, height: 42)
+                        .background(Circle().fill(Color.dayflowLime))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Настроить уведомления")
+            }
+            .padding(.horizontal, 15)
+            .frame(height: 78)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color.dayflowPanel.opacity(0.76))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(Color.dayflowPaper.opacity(0.09), lineWidth: 1)
+            )
+
+            if controller.isActive {
+                Button(action: onSendTest) {
+                    HStack {
+                        Text("Отправить тест")
+                            .font(.dfBodyBold(13))
+
+                        Spacer()
+
+                        Image(systemName: "paperplane.fill")
+                            .font(.system(size: 12, weight: .black))
+                    }
+                    .foregroundStyle(Color.dayflowLime)
+                    .padding(.horizontal, 16)
+                    .frame(height: 48)
+                    .background(Capsule().fill(Color.dayflowPanel.opacity(0.62)))
+                    .overlay(Capsule().stroke(Color.dayflowLime.opacity(0.22), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+private struct DayflowNotificationSettingsSheet: View {
+    @ObservedObject var store: DayPlanStore
+    @ObservedObject var controller: DayflowNotificationController
+
+    @Environment(\.dismiss) private var dismiss
+
+    private let leadOptions = [10, 15, 30]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Image(systemName: controller.isActive ? "bell.badge.fill" : "bell.fill")
+                            .font(.system(size: 18, weight: .black))
+                            .foregroundStyle(controller.isActive ? Color.dayflowBlack : Color.dayflowPaper)
+                            .frame(width: 50, height: 50)
+                            .background(Circle().fill(controller.isActive ? Color.dayflowLime : Color.dayflowPanel.opacity(0.92)))
+                            .overlay(Circle().stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1))
+
+                        Text("Уведомления")
+                            .font(.dfDisplay(30))
+                            .foregroundStyle(Color.dayflowPaper)
+
+                        Text(controller.statusSubtitle)
+                            .font(.dfBodyBold(13))
+                            .foregroundStyle(Color.dayflowMist)
+                    }
+                    .padding(.top, 10)
+
+                    NotificationMasterRow(
+                        title: controller.settings.isEnabled ? "Напоминания включены" : "Напоминания выключены",
+                        subtitle: controller.isActive ? "\(controller.pendingCount) уведомлений поставлено из реальных данных" : "утро, дела, смены и вечерний итог",
+                        isOn: binding(\.isEnabled)
+                    )
+
+                    if controller.settings.isEnabled {
+                        VStack(spacing: 10) {
+                            NotificationToggleRow(
+                                title: "Утренний план",
+                                subtitle: "коротко по делам и смене",
+                                icon: "sun.max.fill",
+                                isOn: binding(\.morningPlanEnabled)
+                            )
+
+                            if controller.settings.morningPlanEnabled {
+                                NotificationTimeRow(
+                                    title: "Время утра",
+                                    icon: "clock.fill",
+                                    selection: timeBinding(\.morningMinutes)
+                                )
+                            }
+
+                            NotificationToggleRow(
+                                title: "Перед делом",
+                                subtitle: "напомнит до бега, зала и других активностей",
+                                icon: "figure.run",
+                                isOn: binding(\.activityRemindersEnabled)
+                            )
+
+                            if controller.settings.activityRemindersEnabled {
+                                NotificationLeadRow(
+                                    selection: Binding(
+                                        get: { controller.settings.activityLeadMinutes },
+                                        set: { value in
+                                            controller.update(store: store) { $0.activityLeadMinutes = value }
+                                        }
+                                    ),
+                                    options: leadOptions
+                                )
+                            }
+
+                            NotificationToggleRow(
+                                title: "Смена завтра",
+                                subtitle: "учитывает автографик и ручные смены",
+                                icon: "calendar.badge.clock",
+                                isOn: binding(\.shiftReminderEnabled)
+                            )
+
+                            if controller.settings.shiftReminderEnabled {
+                                NotificationTimeRow(
+                                    title: "Время смены",
+                                    icon: "briefcase.fill",
+                                    selection: timeBinding(\.shiftReminderMinutes)
+                                )
+                            }
+
+                            NotificationToggleRow(
+                                title: "Закрыть день",
+                                subtitle: "вечерний остаток открытых дел",
+                                icon: "moon.fill",
+                                isOn: binding(\.eveningReviewEnabled)
+                            )
+
+                            if controller.settings.eveningReviewEnabled {
+                                NotificationTimeRow(
+                                    title: "Время вечера",
+                                    icon: "checkmark.seal.fill",
+                                    selection: timeBinding(\.eveningMinutes)
+                                )
+                            }
+                        }
+                    }
+
+                    if controller.permissionState == .denied {
+                        Button(action: openAppSettings) {
+                            HStack {
+                                Text("Открыть настройки iOS")
+                                    .font(.dfDisplaySmall(17))
+
+                                Spacer()
+
+                                Image(systemName: "arrow.up.right")
+                                    .font(.system(size: 13, weight: .black))
+                            }
+                            .foregroundStyle(Color.dayflowBlack)
+                            .padding(.horizontal, 18)
+                            .frame(height: 56)
+                            .background(Capsule().fill(Color.dayflowLime))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Button {
+                        controller.sendTestNotification(store: store)
+                    } label: {
+                        HStack {
+                            Text("Отправить тест")
+                                .font(.dfDisplaySmall(17))
+
+                            Spacer()
+
+                            Image(systemName: "paperplane.fill")
+                                .font(.system(size: 14, weight: .black))
+                        }
+                        .foregroundStyle(controller.settings.isEnabled ? Color.dayflowLime : Color.dayflowMist)
+                        .padding(.horizontal, 18)
+                        .frame(height: 56)
+                        .background(Capsule().fill(Color.dayflowPanel.opacity(0.72)))
+                        .overlay(Capsule().stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!controller.settings.isEnabled)
+                    .opacity(controller.settings.isEnabled ? 1 : 0.52)
+
+                    if let errorMessage = controller.errorMessage {
+                        Text(errorMessage)
+                            .font(.dfBodyBold(12))
+                            .foregroundStyle(Color.dayflowRose)
+                            .lineSpacing(3)
+                    }
+                }
+                .padding(18)
+            }
+            .background(Color.dayflowBlack.ignoresSafeArea())
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                    .font(.dfBodyBold(14))
+                    .foregroundStyle(Color.dayflowMist)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+        .onAppear {
+            controller.refreshStatus()
+            controller.rescheduleIfNeeded(store: store)
+        }
+    }
+
+    private func binding(_ keyPath: WritableKeyPath<DayflowNotificationSettings, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { controller.settings[keyPath: keyPath] },
+            set: { value in
+                controller.update(store: store) { settings in
+                    settings[keyPath: keyPath] = value
+                }
+            }
+        )
+    }
+
+    private func timeBinding(_ keyPath: WritableKeyPath<DayflowNotificationSettings, Int>) -> Binding<Date> {
+        Binding(
+            get: { date(fromMinutes: controller.settings[keyPath: keyPath]) },
+            set: { newDate in
+                controller.update(store: store) { settings in
+                    settings[keyPath: keyPath] = minutes(from: newDate)
+                }
+            }
+        )
+    }
+
+    private func date(fromMinutes minutes: Int) -> Date {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: Date())
+        return calendar.date(byAdding: .minute, value: minutes, to: start) ?? start
+    }
+
+    private func minutes(from date: Date) -> Int {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return (components.hour ?? 0) * 60 + (components.minute ?? 0)
+    }
+
+    private func openAppSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else {
+            return
+        }
+
+        UIApplication.shared.open(url)
+    }
+}
+
+private struct NotificationMasterRow: View {
+    let title: String
+    let subtitle: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: isOn ? "bell.badge.fill" : "bell.slash.fill")
+                .font(.system(size: 16, weight: .black))
+                .foregroundStyle(isOn ? Color.dayflowBlack : Color.dayflowPaper)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(isOn ? Color.dayflowLime : Color.dayflowPanel.opacity(0.96)))
+                .overlay(Circle().stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.dfDisplaySmall(18))
+                    .foregroundStyle(Color.dayflowPaper)
+
+                Text(subtitle)
+                    .font(.dfBody(12))
+                    .foregroundStyle(Color.dayflowMist)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 8)
+
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .tint(Color.dayflowLime)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(Color.dayflowPanel.opacity(0.82))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1)
+        )
+    }
+}
+
+private struct NotificationToggleRow: View {
+    let title: String
+    let subtitle: String
+    let icon: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .black))
+                .foregroundStyle(isOn ? Color.dayflowBlack : Color.dayflowPaper)
+                .frame(width: 42, height: 42)
+                .background(Circle().fill(isOn ? Color.dayflowLime : Color.dayflowPanel.opacity(0.96)))
+                .overlay(Circle().stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.dfDisplaySmall(16))
+                    .foregroundStyle(Color.dayflowPaper)
+
+                Text(subtitle)
+                    .font(.dfBody(12))
+                    .foregroundStyle(Color.dayflowMist)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+
+            Spacer(minLength: 8)
+
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .tint(Color.dayflowLime)
+        }
+        .padding(.horizontal, 15)
+        .frame(height: 72)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.dayflowPanel.opacity(0.72))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.dayflowPaper.opacity(0.09), lineWidth: 1)
+        )
+    }
+}
+
+private struct NotificationTimeRow: View {
+    let title: String
+    let icon: String
+    @Binding var selection: Date
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .black))
+                .foregroundStyle(Color.dayflowLime)
+                .frame(width: 38, height: 38)
+                .background(Circle().fill(Color.dayflowPanel.opacity(0.88)))
+
+            Text(title)
+                .font(.dfBodyBold(13))
+                .foregroundStyle(Color.dayflowMist)
+
+            Spacer()
+
+            DatePicker("", selection: $selection, displayedComponents: .hourAndMinute)
+                .labelsHidden()
+                .datePickerStyle(.compact)
+                .tint(Color.dayflowLime)
+        }
+        .padding(.horizontal, 15)
+        .frame(height: 58)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.dayflowPanel.opacity(0.50))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.dayflowPaper.opacity(0.07), lineWidth: 1)
+        )
+    }
+}
+
+private struct NotificationLeadRow: View {
+    @Binding var selection: Int
+    let options: [Int]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("За сколько напоминать")
+                .font(.dfBodyBold(12))
+                .foregroundStyle(Color.dayflowMist)
+                .textCase(.uppercase)
+
+            Picker("За сколько напоминать", selection: $selection) {
+                ForEach(options, id: \.self) { option in
+                    Text("\(option) мин")
+                        .tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+            .tint(Color.dayflowLime)
+        }
+        .padding(15)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.dayflowPanel.opacity(0.50))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.dayflowPaper.opacity(0.07), lineWidth: 1)
+        )
     }
 }
 

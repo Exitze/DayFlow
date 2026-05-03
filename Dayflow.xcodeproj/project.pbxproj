@@ -26,6 +26,8 @@
 		B0B6A5943681F36ACECEBC53 /* DayflowWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 347B418E2B5631103389100E /* DayflowWidgetBundle.swift */; };
 		B0CC85483A36D93B905D2740 /* DayflowWidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6EEADE1649222F754159928 /* DayflowWidgetSnapshot.swift */; };
 		BAC54BBAFAF9FDF85A38D633 /* DayflowWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AB3097F1FFAA74736A82AD27 /* DayflowWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C1A6B5D4E3F2012345678903 /* DayflowNotificationPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A6B5D4E3F2012345678901 /* DayflowNotificationPlan.swift */; };
+		C1A6B5D4E3F2012345678904 /* DayflowNotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A6B5D4E3F2012345678902 /* DayflowNotificationScheduler.swift */; };
 		DC41EE4F20BA41E501DE2A63 /* Manrope-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 74AEC59C0B54BACC183F1DF0 /* Manrope-Regular.ttf */; };
 		EFE0F7295097BC2CE9F933F0 /* Unbounded-Black.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 609E45D5A1DB7081EB2D3DAA /* Unbounded-Black.ttf */; };
 /* End PBXBuildFile section */
@@ -72,6 +74,8 @@
 		AAE3438A82C03DBC7B542547 /* CompleteActivityIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompleteActivityIntent.swift; sourceTree = "<group>"; };
 		AB3097F1FFAA74736A82AD27 /* DayflowWidgetExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = DayflowWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B6EEADE1649222F754159928 /* DayflowWidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayflowWidgetSnapshot.swift; sourceTree = "<group>"; };
+		C1A6B5D4E3F2012345678901 /* DayflowNotificationPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayflowNotificationPlan.swift; sourceTree = "<group>"; };
+		C1A6B5D4E3F2012345678902 /* DayflowNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayflowNotificationScheduler.swift; sourceTree = "<group>"; };
 		D4126DD2C0034AC31706F58B /* DayActivityModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayActivityModel.swift; sourceTree = "<group>"; };
 		E80FF67E34B3A2DB485C6B17 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		EBD7D6C5DB3B1B4DA5E903B0 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -110,6 +114,8 @@
 				7CA6AF77DB56CA9FFD3DDCD7 /* DayflowApp.swift */,
 				4990996F9109EEAA684386D3 /* DayflowCalendarView.swift */,
 				FA954912F428FB7338FF9F28 /* DayflowHomeView.swift */,
+				C1A6B5D4E3F2012345678901 /* DayflowNotificationPlan.swift */,
+				C1A6B5D4E3F2012345678902 /* DayflowNotificationScheduler.swift */,
 				B6EEADE1649222F754159928 /* DayflowWidgetSnapshot.swift */,
 				9A3837505DE7A7F519EAE2AF /* DayPlanStore.swift */,
 				E80FF67E34B3A2DB485C6B17 /* Info.plist */,
@@ -270,6 +276,8 @@
 				08C2EC72245F88950E1260BE /* DayflowApp.swift in Sources */,
 				A883E219F645D85626014302 /* DayflowCalendarView.swift in Sources */,
 				998716E7DB8F55F9D9C076EB /* DayflowHomeView.swift in Sources */,
+				C1A6B5D4E3F2012345678903 /* DayflowNotificationPlan.swift in Sources */,
+				C1A6B5D4E3F2012345678904 /* DayflowNotificationScheduler.swift in Sources */,
 				1F7831740EF9E72E3C55D276 /* DayflowWidgetSnapshot.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
