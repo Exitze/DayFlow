@@ -83,6 +83,9 @@ struct DayflowCalendarView: View {
                 onSaveRecurring: { newActivity, pattern in
                     try store.addRecurringActivity(newActivity, pattern: pattern, starting: selectedDate)
                 },
+                onSaveHabit: { newActivity, goal, pattern in
+                    try store.addHabit(newActivity, goal: goal, pattern: pattern, starting: selectedDate)
+                },
                 onRepeatPreviousDay: repeatPreviousDayIntoSelection
             )
         }
@@ -524,9 +527,24 @@ private struct CalendarActivityRow: View {
                         .foregroundStyle(activity.isCompleted ? Color.dayflowMist : Color.dayflowPaper)
                         .strikethrough(activity.isCompleted, color: Color.dayflowMist)
 
-                    Text(activity.detail)
-                        .font(.dfBody(12))
-                        .foregroundStyle(Color.dayflowMist)
+                    HStack(spacing: 5) {
+                        if activity.isHabit {
+                            Image(systemName: "repeat")
+                                .font(.system(size: 8, weight: .black))
+                                .foregroundStyle(Color.dayflowLime)
+
+                            if let habitGoalText = activity.habitGoalText {
+                                Text(habitGoalText)
+                                    .font(.dfBodyBold(10))
+                                    .foregroundStyle(Color.dayflowLime)
+                            }
+                        }
+
+                        Text(activity.detail)
+                            .font(.dfBody(12))
+                            .foregroundStyle(Color.dayflowMist)
+                            .lineLimit(1)
+                    }
                 }
 
                 Spacer()
@@ -546,7 +564,7 @@ private struct CalendarActivityRow: View {
             Button(role: .destructive) {
                 onDelete(activity)
             } label: {
-                Label("Удалить", systemImage: "trash")
+                Label(activity.isHabit ? "Пропустить" : "Удалить", systemImage: activity.isHabit ? "forward.end.fill" : "trash")
             }
         }
     }

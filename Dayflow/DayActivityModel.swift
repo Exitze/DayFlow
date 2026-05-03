@@ -500,6 +500,7 @@ public enum DayActivityValidationError: Error, Equatable {
     case invalidCategory
     case activityNotFound
     case invalidRecurrence
+    case invalidHabitGoal
 }
 
 public struct DayflowQuickActivityTemplate: Equatable, Identifiable {
@@ -793,6 +794,198 @@ public struct DayActivityRecurrenceSkip: Codable, Equatable, Identifiable {
     }
 }
 
+public enum DayHabitGoalUnit: String, Codable, CaseIterable, Equatable, Identifiable {
+    case count
+    case minutes
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .count:
+            return "разы"
+        case .minutes:
+            return "минуты"
+        }
+    }
+
+    public var shortTitle: String {
+        switch self {
+        case .count:
+            return "раз"
+        case .minutes:
+            return "мин"
+        }
+    }
+}
+
+public struct DayHabitGoal: Codable, Equatable {
+    public var value: Int
+    public var unit: DayHabitGoalUnit
+
+    public init(value: Int, unit: DayHabitGoalUnit) {
+        self.value = max(1, value)
+        self.unit = unit
+    }
+}
+
+public enum DayHabitLogStatus: String, Codable, Equatable {
+    case progress
+    case completed
+    case skipped
+}
+
+public struct DayHabit: Codable, Equatable, Identifiable {
+    public var id: UUID
+    public var title: String
+    public var timeMinutes: Int
+    public var detail: String
+    public var category: DayActivityCategory
+    public var icon: String
+    public var accent: ActivityAccent
+    public var goal: DayHabitGoal
+    public var pattern: DayActivityRecurrencePattern
+    public var startDayID: String
+    public var isEnabled: Bool
+
+    public init(
+        id: UUID = UUID(),
+        title: String,
+        timeMinutes: Int,
+        detail: String,
+        category: DayActivityCategory,
+        icon: String,
+        accent: ActivityAccent,
+        goal: DayHabitGoal,
+        pattern: DayActivityRecurrencePattern,
+        startDayID: String,
+        isEnabled: Bool = true
+    ) {
+        self.id = id
+        self.title = title
+        self.timeMinutes = timeMinutes
+        self.detail = detail
+        self.category = category
+        self.icon = icon
+        self.accent = accent
+        self.goal = goal
+        self.pattern = pattern
+        self.startDayID = startDayID
+        self.isEnabled = isEnabled
+    }
+
+    public init(
+        activity: NewDayActivity,
+        goal: DayHabitGoal,
+        pattern: DayActivityRecurrencePattern,
+        starting date: Date,
+        calendar: Calendar = .current
+    ) throws {
+        guard goal.value > 0 else {
+            throw DayActivityValidationError.invalidHabitGoal
+        }
+
+        let parsed = try DayActivity(activity)
+        self.init(
+            title: parsed.title,
+            timeMinutes: parsed.timeMinutes,
+            detail: parsed.detail,
+            category: parsed.category,
+            icon: parsed.icon,
+            accent: parsed.accent,
+            goal: goal,
+            pattern: pattern,
+            startDayID: DayActivity.dayID(for: date, calendar: calendar)
+        )
+    }
+
+    public func matches(
+        date: Date,
+        shift: ShiftKind,
+        previousShift: ShiftKind,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard isEnabled else {
+            return false
+        }
+
+        let currentDayID = DayActivity.dayID(for: date, calendar: calendar)
+        switch pattern {
+        case .selectedDates(let dayIDs):
+            return dayIDs.contains(currentDayID)
+        case .daily:
+            return currentDayID >= startDayID
+        case .weekdays(let weekdays):
+            return currentDayID >= startDayID && weekdays.contains(DayActivityRecurrenceRule.isoWeekday(for: date, calendar: calendar))
+        case .shiftKinds(let shifts):
+            return currentDayID >= startDayID && shifts.contains(shift)
+        case .afterNight:
+            return currentDayID >= startDayID && previousShift == .night
+        }
+    }
+
+    public func activity(on date: Date, calendar: Calendar = .current) -> DayActivity {
+        DayActivity(
+            title: title,
+            timeMinutes: timeMinutes,
+            detail: detail,
+            category: category,
+            icon: icon,
+            accent: accent,
+            dayID: DayActivity.dayID(for: date, calendar: calendar),
+            habitID: id,
+            habitGoalValue: goal.value,
+            habitGoalUnit: goal.unit
+        )
+    }
+}
+
+public struct DayHabitLog: Codable, Equatable, Identifiable {
+    public var habitID: UUID
+    public var dayID: String
+    public var value: Int
+    public var note: String
+    public var status: DayHabitLogStatus
+
+    public var id: String {
+        "\(habitID.uuidString)|\(dayID)"
+    }
+
+    public init(habitID: UUID, dayID: String, value: Int, note: String = "", status: DayHabitLogStatus) {
+        self.habitID = habitID
+        self.dayID = dayID
+        self.value = max(0, value)
+        self.note = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.status = status
+    }
+}
+
+public struct DayHabitProgress: Equatable {
+    public var habit: DayHabit
+    public var log: DayHabitLog?
+    public var currentValue: Int
+    public var goalValue: Int
+    public var unit: DayHabitGoalUnit
+    public var completionPercent: Int
+    public var isCompleted: Bool
+    public var isSkipped: Bool
+    public var currentStreak: Int
+
+    public init(habit: DayHabit, log: DayHabitLog?, currentStreak: Int) {
+        self.habit = habit
+        self.log = log
+        self.currentValue = log?.value ?? 0
+        self.goalValue = habit.goal.value
+        self.unit = habit.goal.unit
+        self.completionPercent = habit.goal.value == 0
+            ? 0
+            : min(100, Int((Double(currentValue) / Double(habit.goal.value) * 100).rounded()))
+        self.isCompleted = log?.status == .completed
+        self.isSkipped = log?.status == .skipped
+        self.currentStreak = currentStreak
+    }
+}
+
 public struct NewDayActivity: Equatable {
     public var title: String
     public var timeText: String
@@ -832,9 +1025,24 @@ public struct DayActivity: Codable, Equatable, Identifiable {
     public var isCompleted: Bool
     public var dayID: String?
     public var recurrenceRuleID: UUID?
+    public var habitID: UUID?
+    public var habitGoalValue: Int?
+    public var habitGoalUnit: DayHabitGoalUnit?
 
     public var timeText: String {
         Self.timeText(from: timeMinutes)
+    }
+
+    public var isHabit: Bool {
+        habitID != nil
+    }
+
+    public var habitGoalText: String? {
+        guard let habitGoalValue, let habitGoalUnit else {
+            return nil
+        }
+
+        return "\(habitGoalValue) \(habitGoalUnit.shortTitle)"
     }
 
     public init(
@@ -847,7 +1055,10 @@ public struct DayActivity: Codable, Equatable, Identifiable {
         accent: ActivityAccent,
         isCompleted: Bool = false,
         dayID: String? = nil,
-        recurrenceRuleID: UUID? = nil
+        recurrenceRuleID: UUID? = nil,
+        habitID: UUID? = nil,
+        habitGoalValue: Int? = nil,
+        habitGoalUnit: DayHabitGoalUnit? = nil
     ) {
         self.id = id
         self.title = title
@@ -859,6 +1070,9 @@ public struct DayActivity: Codable, Equatable, Identifiable {
         self.isCompleted = isCompleted
         self.dayID = dayID
         self.recurrenceRuleID = recurrenceRuleID
+        self.habitID = habitID
+        self.habitGoalValue = habitGoalValue
+        self.habitGoalUnit = habitGoalUnit
     }
 
     public init(_ newActivity: NewDayActivity) throws {

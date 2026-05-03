@@ -177,6 +177,14 @@ struct DayflowHomeView: View {
                 WidgetCenter.shared.reloadAllTimelines()
                 notificationController.rescheduleIfNeeded(store: store)
             }
+            .onReceive(store.$habits.dropFirst()) { _ in
+                WidgetCenter.shared.reloadAllTimelines()
+                notificationController.rescheduleIfNeeded(store: store)
+            }
+            .onReceive(store.$habitLogs.dropFirst()) { _ in
+                WidgetCenter.shared.reloadAllTimelines()
+                notificationController.rescheduleIfNeeded(store: store)
+            }
             .onOpenURL { url in
                 handleDeepLink(url)
             }
@@ -188,6 +196,9 @@ struct DayflowHomeView: View {
                     },
                     onSaveRecurring: { newActivity, pattern in
                         try store.addRecurringActivity(newActivity, pattern: pattern, starting: currentDate)
+                    },
+                    onSaveHabit: { newActivity, goal, pattern in
+                        try store.addHabit(newActivity, goal: goal, pattern: pattern, starting: currentDate)
                     },
                     onRepeatPreviousDay: repeatPreviousDayIntoToday
                 )
@@ -1492,10 +1503,24 @@ private struct AgendaRow: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.76)
 
-                Text(activity.detail)
-                    .font(.dfBody(13))
-                    .foregroundStyle(Color.dayflowMist)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    if activity.isHabit {
+                        Image(systemName: "repeat")
+                            .font(.system(size: 9, weight: .black))
+                            .foregroundStyle(Color.dayflowLime)
+
+                        if let habitGoalText = activity.habitGoalText {
+                            Text(habitGoalText)
+                                .font(.dfBodyBold(11))
+                                .foregroundStyle(Color.dayflowLime)
+                        }
+                    }
+
+                    Text(activity.detail)
+                        .font(.dfBody(13))
+                        .foregroundStyle(Color.dayflowMist)
+                        .lineLimit(1)
+                }
 
                 ProgressTrack(progress: activity.isCompleted ? 1 : 0, accent: activity.accent.color)
                     .padding(.top, 4)
@@ -1540,7 +1565,7 @@ private struct AgendaRow: View {
             Button(role: .destructive) {
                 onDelete(activity)
             } label: {
-                Label("Удалить", systemImage: "trash")
+                Label(activity.isHabit ? "Пропустить" : "Удалить", systemImage: activity.isHabit ? "forward.end.fill" : "trash")
             }
         }
         .accessibilityElement(children: .combine)
@@ -3731,10 +3756,12 @@ struct NewActivitySheet: View {
     let targetDate: Date
     let onSave: (NewDayActivity) throws -> Void
     let onSaveRecurring: (NewDayActivity, DayActivityRecurrencePattern) throws -> Void
+    let onSaveHabit: (NewDayActivity, DayHabitGoal, DayActivityRecurrencePattern) throws -> Void
     let onRepeatPreviousDay: () throws -> Int
 
     @Environment(\.dismiss) private var dismiss
     @FocusState private var isQuickInputFocused: Bool
+    @State private var entryKind: NewActivityEntryKind = .task
     @State private var quickText = ""
     @State private var title = ""
     @State private var detail = ""
@@ -3746,6 +3773,8 @@ struct NewActivitySheet: View {
     @State private var selectedWeekdays: Set<Int> = []
     @State private var selectedRecurringDayIDs: Set<String> = []
     @State private var selectedShiftKinds: Set<ShiftKind> = []
+    @State private var habitGoalValue = 1
+    @State private var habitGoalUnit: DayHabitGoalUnit = .count
 
     var body: some View {
         NavigationStack {
@@ -3757,9 +3786,17 @@ struct NewActivitySheet: View {
 
                     quickTemplateRail
 
-                    repeatYesterdayButton
+                    entryKindBlock
+
+                    if entryKind == .task {
+                        repeatYesterdayButton
+                    }
 
                     recurrenceBlock
+
+                    if entryKind == .habit {
+                        habitGoalBlock
+                    }
 
                     SheetTextField(title: "Название", placeholder: "если нужно поправить", text: $title)
                     SheetTextField(title: "Детали", placeholder: "Парк, 40 мин", text: $detail)
@@ -3835,7 +3872,7 @@ struct NewActivitySheet: View {
 
                     Button(action: save) {
                         HStack {
-                            Text("Добавить")
+                            Text(entryKind == .habit ? "Добавить привычку" : "Добавить")
                                 .font(.dfDisplaySmall(18))
 
                             Spacer()
@@ -4001,9 +4038,61 @@ struct NewActivitySheet: View {
         .buttonStyle(.plain)
     }
 
+    private var entryKindBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Формат")
+                .font(.dfBodyBold(12))
+                .foregroundStyle(Color.dayflowMist)
+                .textCase(.uppercase)
+
+            HStack(spacing: 10) {
+                ForEach(NewActivityEntryKind.allCases) { kind in
+                    Button {
+                        if kind == .task && entryKind == .habit && repeatMode == .daily {
+                            repeatMode = .none
+                        }
+                        entryKind = kind
+                        if kind == .habit && repeatMode == .none {
+                            repeatMode = .daily
+                        }
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: kind.icon)
+                                .font(.system(size: 14, weight: .black))
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(kind.title)
+                                    .font(.dfBodyBold(13))
+                                Text(kind.subtitle)
+                                    .font(.dfBody(10))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.82)
+                            }
+
+                            Spacer(minLength: 0)
+                        }
+                        .foregroundStyle(entryKind == kind ? Color.dayflowBlack : Color.dayflowPaper)
+                        .padding(.horizontal, 14)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 54)
+                        .background(
+                            RoundedRectangle(cornerRadius: 21, style: .continuous)
+                                .fill(entryKind == kind ? Color.dayflowLime : Color.dayflowPanel.opacity(0.82))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 21, style: .continuous)
+                                .stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
     private var recurrenceBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Повтор")
+            Text(entryKind == .habit ? "Ритм привычки" : "Повтор")
                 .font(.dfBodyBold(12))
                 .foregroundStyle(Color.dayflowMist)
                 .textCase(.uppercase)
@@ -4036,6 +4125,82 @@ struct NewActivitySheet: View {
             }
 
             recurrenceDetails
+        }
+    }
+
+    private var habitGoalBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Цель")
+                .font(.dfBodyBold(12))
+                .foregroundStyle(Color.dayflowMist)
+                .textCase(.uppercase)
+
+            HStack(spacing: 12) {
+                HStack(spacing: 12) {
+                    Button {
+                        habitGoalValue = max(1, habitGoalValue - goalStep)
+                    } label: {
+                        Image(systemName: "minus")
+                            .font(.system(size: 13, weight: .black))
+                            .foregroundStyle(Color.dayflowPaper)
+                            .frame(width: 38, height: 38)
+                            .background(Circle().fill(Color.dayflowBlack.opacity(0.72)))
+                    }
+                    .buttonStyle(.plain)
+
+                    Text("\(habitGoalValue)")
+                        .font(.dfDisplaySmall(22))
+                        .foregroundStyle(Color.dayflowPaper)
+                        .frame(minWidth: 52)
+
+                    Button {
+                        habitGoalValue += goalStep
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 13, weight: .black))
+                            .foregroundStyle(Color.dayflowBlack)
+                            .frame(width: 38, height: 38)
+                            .background(Circle().fill(Color.dayflowLime))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 12)
+                .frame(height: 58)
+                .background(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(Color.dayflowPanel.opacity(0.86))
+                )
+
+                HStack(spacing: 6) {
+                    ForEach(DayHabitGoalUnit.allCases) { unit in
+                        Button {
+                            habitGoalUnit = unit
+                            if unit == .minutes && habitGoalValue < 5 {
+                                habitGoalValue = 10
+                            }
+                            if unit == .count && habitGoalValue > 20 {
+                                habitGoalValue = 1
+                            }
+                        } label: {
+                            Text(unit.title)
+                                .font(.dfBodyBold(11))
+                                .foregroundStyle(habitGoalUnit == unit ? Color.dayflowBlack : Color.dayflowPaper)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 38)
+                                .background(Capsule().fill(habitGoalUnit == unit ? Color.dayflowLime : Color.dayflowBlack.opacity(0.70)))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(6)
+                .frame(maxWidth: .infinity)
+                .frame(height: 58)
+                .background(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(Color.dayflowPanel.opacity(0.86))
+                )
+            }
+
         }
     }
 
@@ -4115,6 +4280,10 @@ struct NewActivitySheet: View {
         !trimmedQuickText.isEmpty || !trimmedTitle.isEmpty
     }
 
+    private var goalStep: Int {
+        habitGoalUnit == .minutes ? 5 : 1
+    }
+
     private var recurrenceShiftOptions: [ShiftKind] {
         [.day, .night, .recovery, .rest]
     }
@@ -4182,7 +4351,9 @@ struct NewActivitySheet: View {
     private func save() {
         do {
             let activity = try makeActivity()
-            if let pattern = try recurrencePattern() {
+            if entryKind == .habit {
+                try onSaveHabit(activity, DayHabitGoal(value: habitGoalValue, unit: habitGoalUnit), try recurrencePattern() ?? .daily)
+            } else if let pattern = try recurrencePattern() {
                 try onSaveRecurring(activity, pattern)
             } else {
                 try onSave(activity)
@@ -4298,6 +4469,40 @@ struct NewActivitySheet: View {
             set.remove(value)
         } else {
             set.insert(value)
+        }
+    }
+}
+
+private enum NewActivityEntryKind: String, CaseIterable, Identifiable {
+    case task
+    case habit
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .task:
+            return "Дело"
+        case .habit:
+            return "Привычка"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .task:
+            return "разовая задача"
+        case .habit:
+            return "цель и серия"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .task:
+            return "checkmark.circle.fill"
+        case .habit:
+            return "repeat.circle.fill"
         }
     }
 }

@@ -158,6 +158,125 @@ final class DayPlanStoreTests: XCTestCase {
         XCTAssertEqual(store.activities(on: tomorrow).map(\.title), ["Вода"])
     }
 
+    func testAddingHabitMaterializesActivityWithGoalMetadata() throws {
+        let start = date(year: 2026, month: 5, day: 3)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { start })
+
+        let habit = try store.addHabit(
+            NewDayActivity(title: "Вода", timeText: "10:00", detail: "Стаканы", category: .body, icon: "drop.fill", accent: .sky),
+            goal: DayHabitGoal(value: 8, unit: .count),
+            pattern: .daily,
+            starting: start
+        )
+
+        let activity = try XCTUnwrap(store.activities(on: start).first)
+        XCTAssertEqual(activity.title, "Вода")
+        XCTAssertEqual(activity.habitID, habit.id)
+        XCTAssertEqual(activity.habitGoalValue, 8)
+        XCTAssertEqual(activity.habitGoalUnit, .count)
+        XCTAssertFalse(activity.isCompleted)
+    }
+
+    func testCompletingHabitActivityCreatesCompletionLogAndStreak() throws {
+        let start = date(year: 2026, month: 5, day: 3)
+        let tomorrow = addingDays(1, to: start)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { start })
+        let habit = try store.addHabit(
+            NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .lime),
+            goal: DayHabitGoal(value: 30, unit: .minutes),
+            pattern: .daily,
+            starting: start
+        )
+
+        try store.setCompleted(try XCTUnwrap(store.activities(on: start).first).id, true)
+        try store.setCompleted(try XCTUnwrap(store.activities(on: tomorrow).first).id, true)
+
+        let progress = try XCTUnwrap(store.habitProgress(for: habit.id, on: tomorrow))
+        XCTAssertEqual(progress.currentValue, 30)
+        XCTAssertEqual(progress.completionPercent, 100)
+        XCTAssertEqual(progress.currentStreak, 2)
+        XCTAssertEqual(store.habitHistory(for: habit.id).map(\.status), [.completed, .completed])
+    }
+
+    func testHabitPartialCounterProgressStoresHistoryWithoutCompletingActivity() throws {
+        let start = date(year: 2026, month: 5, day: 3)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { start })
+        let habit = try store.addHabit(
+            NewDayActivity(title: "Вода", timeText: "10:00", detail: "Стаканы", category: .body, icon: "drop.fill", accent: .sky),
+            goal: DayHabitGoal(value: 8, unit: .count),
+            pattern: .daily,
+            starting: start
+        )
+
+        try store.recordHabitProgress(habit.id, on: start, value: 3, note: "после тренировки")
+
+        let progress = try XCTUnwrap(store.habitProgress(for: habit.id, on: start))
+        let activity = try XCTUnwrap(store.activities(on: start).first)
+        XCTAssertEqual(progress.currentValue, 3)
+        XCTAssertEqual(progress.completionPercent, 38)
+        XCTAssertFalse(progress.isCompleted)
+        XCTAssertFalse(activity.isCompleted)
+        XCTAssertEqual(store.habitHistory(for: habit.id).first?.note, "после тренировки")
+    }
+
+    func testHabitGraceSkipDoesNotBreakCurrentStreak() throws {
+        let start = date(year: 2026, month: 5, day: 3)
+        let skippedDay = addingDays(1, to: start)
+        let thirdDay = addingDays(2, to: start)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { start })
+        let habit = try store.addHabit(
+            NewDayActivity(title: "Медитация", timeText: "22:00", detail: "10 минут", category: .personal, icon: "moon.fill", accent: .rose),
+            goal: DayHabitGoal(value: 1, unit: .count),
+            pattern: .daily,
+            starting: start
+        )
+
+        try store.setCompleted(try XCTUnwrap(store.activities(on: start).first).id, true)
+        try store.skipHabit(habit.id, on: skippedDay, note: "ночная смена")
+        try store.setCompleted(try XCTUnwrap(store.activities(on: thirdDay).first).id, true)
+
+        let progress = try XCTUnwrap(store.habitProgress(for: habit.id, on: thirdDay))
+        XCTAssertEqual(progress.currentStreak, 2)
+        XCTAssertEqual(store.habitHistory(for: habit.id).map(\.status), [.completed, .skipped, .completed])
+    }
+
+    func testRemovingHabitActivityRecordsGraceSkipAndPreventsRematerialization() throws {
+        let start = date(year: 2026, month: 5, day: 3)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { start })
+        let habit = try store.addHabit(
+            NewDayActivity(title: "Сон", timeText: "23:00", detail: "Лечь вовремя", category: .body, icon: "bed.double.fill", accent: .rose),
+            goal: DayHabitGoal(value: 480, unit: .minutes),
+            pattern: .daily,
+            starting: start
+        )
+        let activity = try XCTUnwrap(store.activities(on: start).first)
+
+        try store.remove(activity.id)
+
+        XCTAssertEqual(store.activities(on: start), [])
+        XCTAssertEqual(store.habitHistory(for: habit.id).map(\.status), [.skipped])
+        XCTAssertEqual(store.habitProgress(for: habit.id, on: start)?.isSkipped, true)
+    }
+
+    func testHabitsAndHistoryReloadAcrossLaunches() throws {
+        let start = date(year: 2026, month: 5, day: 3)
+        let storage = MemoryActivityStorage()
+        let firstStore = DayPlanStore(storage: storage, calendar: testCalendar, todayProvider: { start })
+        let habit = try firstStore.addHabit(
+            NewDayActivity(title: "Вода", timeText: "10:00", detail: "Стаканы", category: .body, icon: "drop.fill", accent: .sky),
+            goal: DayHabitGoal(value: 8, unit: .count),
+            pattern: .daily,
+            starting: start
+        )
+        try firstStore.recordHabitProgress(habit.id, on: start, value: 8, note: "готово")
+
+        let reloadedStore = DayPlanStore(storage: storage, calendar: testCalendar, todayProvider: { start })
+
+        XCTAssertEqual(reloadedStore.habits.map(\.title), ["Вода"])
+        XCTAssertEqual(reloadedStore.habitHistory(for: habit.id).first?.status, .completed)
+        XCTAssertEqual(reloadedStore.habitHistory(for: habit.id).first?.note, "готово")
+    }
+
     func testUserDefaultsStorageMigratesLegacyDataToSharedStorage() throws {
         let legacyDefaults = makeIsolatedDefaults()
         let sharedDefaults = makeIsolatedDefaults()
@@ -1015,6 +1134,12 @@ final class DayPlanStoreTests: XCTestCase {
         let store = DayPlanStore(storage: storage, todayProvider: { today })
 
         try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky), on: today)
+        try store.addHabit(
+            NewDayActivity(title: "Вода", timeText: "10:00", detail: "Стаканы", category: .body, icon: "drop.fill", accent: .sky),
+            goal: DayHabitGoal(value: 8, unit: .count),
+            pattern: .daily,
+            starting: today
+        )
         try store.setNote("Взять форму", for: today)
         try store.setShiftSchedule(.makePreset(.twoTwo, starting: today))
 
@@ -1023,9 +1148,13 @@ final class DayPlanStoreTests: XCTestCase {
         XCTAssertEqual(store.activities, [])
         XCTAssertEqual(store.dayDetails, [])
         XCTAssertNil(store.shiftSchedule)
+        XCTAssertEqual(store.habits, [])
+        XCTAssertEqual(store.habitLogs, [])
         XCTAssertEqual(storage.savedActivities, [])
         XCTAssertEqual(storage.savedDayDetails, [])
         XCTAssertNil(storage.savedShiftSchedule)
+        XCTAssertEqual(storage.savedHabits, [])
+        XCTAssertEqual(storage.savedHabitLogs, [])
     }
 }
 
@@ -1040,6 +1169,10 @@ private final class MemoryActivityStorage: DayActivityStorage {
     var recurrenceRulesToLoad: [DayActivityRecurrenceRule] = []
     var savedRecurrenceSkips: [DayActivityRecurrenceSkip] = []
     var recurrenceSkipsToLoad: [DayActivityRecurrenceSkip] = []
+    var savedHabits: [DayHabit] = []
+    var habitsToLoad: [DayHabit] = []
+    var savedHabitLogs: [DayHabitLog] = []
+    var habitLogsToLoad: [DayHabitLog] = []
 
     func loadActivities() throws -> [DayActivity] {
         activitiesToLoad
@@ -1084,6 +1217,24 @@ private final class MemoryActivityStorage: DayActivityStorage {
     func saveRecurrenceSkips(_ recurrenceSkips: [DayActivityRecurrenceSkip]) throws {
         savedRecurrenceSkips = recurrenceSkips
         recurrenceSkipsToLoad = recurrenceSkips
+    }
+
+    func loadHabits() throws -> [DayHabit] {
+        habitsToLoad
+    }
+
+    func saveHabits(_ habits: [DayHabit]) throws {
+        savedHabits = habits
+        habitsToLoad = habits
+    }
+
+    func loadHabitLogs() throws -> [DayHabitLog] {
+        habitLogsToLoad
+    }
+
+    func saveHabitLogs(_ habitLogs: [DayHabitLog]) throws {
+        savedHabitLogs = habitLogs
+        habitLogsToLoad = habitLogs
     }
 }
 
