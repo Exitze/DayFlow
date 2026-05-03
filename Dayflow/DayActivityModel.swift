@@ -332,7 +332,14 @@ public struct ShiftSchedule: Codable, Equatable, Identifiable {
     }
 
     public func paySettings(for shift: ShiftKind) -> ShiftPaySettings {
-        paySettings[shift] ?? ShiftPaySettings.defaultSettings(for: shift)
+        var settings = paySettings[shift] ?? ShiftPaySettings.defaultSettings(for: shift)
+        if [.morning, .night].contains(shift),
+           settings.hourlyRate == 0,
+           let daySettings = paySettings[.day],
+           daySettings.hourlyRate > 0 {
+            settings.hourlyRate = daySettings.hourlyRate
+        }
+        return settings
     }
 
     private static func date(fromDayID dayID: String, calendar: Calendar) -> Date? {

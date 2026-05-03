@@ -1038,6 +1038,30 @@ final class DayPlanStoreTests: XCTestCase {
         XCTAssertEqual(summary.estimatedPay, 24_000, accuracy: 0.01)
     }
 
+    func testNightShiftInheritsDayRateWhenNightRateIsBlank() throws {
+        let start = date(year: 2026, month: 5, day: 2)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { start })
+        var schedule = ShiftSchedule.makePreset(.dayNightRest, starting: start, calendar: testCalendar)
+        schedule.paySettings[.day] = ShiftPaySettings(
+            startMinutes: 8 * 60,
+            endMinutes: 20 * 60,
+            hourlyRate: 1000,
+            payMultiplier: 1,
+            overtimeThresholdMinutes: 12 * 60,
+            overtimeMultiplier: 1.5
+        )
+        try store.setShiftSchedule(schedule)
+
+        let nightSummary = try XCTUnwrap(store.shiftWorkdaySummary(for: addingDays(1, to: start)))
+        let payrollSummary = store.shiftPayrollSummary(from: start, to: addingDays(1, to: start))
+
+        XCTAssertEqual(nightSummary.shift, .night)
+        XCTAssertEqual(nightSummary.hourlyRate, 1000, accuracy: 0.01)
+        XCTAssertEqual(nightSummary.payMultiplier, 1.2, accuracy: 0.01)
+        XCTAssertEqual(nightSummary.estimatedPay, 16_800, accuracy: 0.01)
+        XCTAssertEqual(payrollSummary.estimatedPay, 28_800, accuracy: 0.01)
+    }
+
     func testRestShiftSummaryHasZeroPaidHoursByDefault() throws {
         let start = date(year: 2026, month: 5, day: 2)
         let restDay = addingDays(3, to: start)
