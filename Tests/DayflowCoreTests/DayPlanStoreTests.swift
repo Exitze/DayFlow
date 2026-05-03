@@ -134,7 +134,7 @@ final class DayPlanStoreTests: XCTestCase {
 
         XCTAssertTrue(projectItems.contains(.privacyManifest))
         XCTAssertTrue(projectItems.contains(.localDataDeletion))
-        XCTAssertTrue(externalItems.contains(.developerProgram))
+        XCTAssertFalse(externalItems.map(\.rawValue).contains("developerProgram"))
         XCTAssertTrue(externalItems.contains(.privacyPolicyURL))
         XCTAssertTrue(externalItems.contains(.supportURL))
         XCTAssertTrue(externalItems.contains(.testFlight))

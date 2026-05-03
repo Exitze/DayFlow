@@ -591,7 +591,6 @@ public enum ReleaseReadinessItemID: String, Equatable, CaseIterable {
     case privacyManifest
     case localDataDeletion
     case noRuntimePermissions
-    case developerProgram
     case privacyPolicyURL
     case supportURL
     case appStoreMetadata
@@ -632,12 +631,6 @@ public enum DayflowReleaseReadiness {
             title: "Системные разрешения",
             detail: "Сейчас Dayflow не запрашивает календарь, геолокацию, фото, трекинг или контакты.",
             isHandledInProject: true
-        ),
-        ReleaseReadinessItem(
-            id: .developerProgram,
-            title: "Apple Developer Program",
-            detail: "Нужен активный аккаунт разработчика и выбранная команда для подписи релизной сборки.",
-            isHandledInProject: false
         ),
         ReleaseReadinessItem(
             id: .privacyPolicyURL,
