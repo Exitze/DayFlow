@@ -35,6 +35,7 @@ struct DayflowPlanWidget: Widget {
         .configurationDisplayName("Dayflow")
         .description("План дня, прогресс и ближайшие активности.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular])
+        .contentMarginsDisabled()
     }
 }
 
@@ -48,6 +49,7 @@ struct DayflowShiftWidget: Widget {
         .configurationDisplayName("Смена Dayflow")
         .description("Текущая смена и ближайший статус графика.")
         .supportedFamilies([.systemSmall, .accessoryRectangular])
+        .contentMarginsDisabled()
     }
 }
 
@@ -95,24 +97,37 @@ private struct SmallPlanWidget: View {
     let snapshot: DayflowWidgetSnapshot
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            WidgetHeader(title: "план дня", value: "\(snapshot.completedCount)/\(snapshot.totalCount)", showsQuickAdd: true)
+        VStack(spacing: 7) {
+            WidgetTopBar(title: "план", value: "\(snapshot.completedCount)/\(snapshot.totalCount)", showsQuickAdd: true)
 
             ZStack {
                 ArcField()
-                    .opacity(0.34)
+                    .opacity(0.26)
+                    .frame(width: 108, height: 78)
+                    .offset(x: 18, y: 2)
 
-                ProgressOrb(percent: snapshot.progressPercent, size: 70, lineWidth: 8)
-                    .frame(maxWidth: .infinity, alignment: .center)
+                ProgressOrb(percent: snapshot.progressPercent, size: 60, lineWidth: 7)
             }
+            .frame(maxWidth: .infinity)
+            .frame(height: 62)
 
             if let activity = snapshot.nextActivities.first {
-                ActivityLine(activity: activity, showsButton: false)
+                CompactStatusPill(
+                    icon: activity.icon,
+                    tint: activity.accent.widgetColor,
+                    title: activity.title,
+                    subtitle: activity.timeText
+                )
             } else {
-                EmptyLine(title: "день закрыт", subtitle: "свободно")
+                CompactStatusPill(
+                    icon: "checkmark",
+                    tint: Color.dayflowWidgetLime,
+                    title: "день закрыт",
+                    subtitle: "свободно"
+                )
             }
         }
-        .padding(14)
+        .padding(11)
     }
 }
 
@@ -120,33 +135,44 @@ private struct MediumPlanWidget: View {
     let snapshot: DayflowWidgetSnapshot
 
     var body: some View {
-        HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 10) {
-                WidgetHeader(title: "Dayflow", value: "\(snapshot.completedCount)/\(snapshot.totalCount)", showsQuickAdd: true)
+        VStack(alignment: .leading, spacing: 9) {
+            WidgetTopBar(title: "Dayflow", value: "\(snapshot.completedCount)/\(snapshot.totalCount)", showsQuickAdd: true)
 
-                ProgressOrb(percent: snapshot.progressPercent, size: 88, lineWidth: 9)
-
-                ShiftBadge(shift: snapshot.effectiveShift, scheduleName: snapshot.scheduleName)
-            }
-            .frame(width: 104, alignment: .leading)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("ближайшие")
-                    .font(.dfWidgetDisplaySmall(16))
-                    .foregroundStyle(Color.dayflowWidgetPaper)
-
-                if snapshot.nextActivities.isEmpty {
-                    EmptyLine(title: "все закрыто", subtitle: "можно выдохнуть")
-                } else {
-                    ForEach(snapshot.nextActivities.prefix(3)) { activity in
-                        ActivityLine(activity: activity, showsButton: true)
-                    }
+            HStack(alignment: .top, spacing: 12) {
+                VStack(spacing: 8) {
+                    ProgressOrb(percent: snapshot.progressPercent, size: 72, lineWidth: 8)
+                    ShiftBadge(shift: snapshot.effectiveShift, scheduleName: snapshot.scheduleName)
+                        .frame(maxWidth: 92)
                 }
+                .frame(width: 88)
 
-                Spacer(minLength: 0)
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("ближайшие")
+                        .font(.dfWidgetDisplaySmall(18))
+                        .foregroundStyle(Color.dayflowWidgetPaper)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+
+                    if snapshot.nextActivities.isEmpty {
+                        EmptyLine(title: "все закрыто", subtitle: "можно выдохнуть")
+                    } else {
+                        ForEach(snapshot.nextActivities.prefix(2)) { activity in
+                            CompactActivityLine(activity: activity, showsButton: true)
+                        }
+
+                        if snapshot.nextActivities.count > 2 {
+                            Text("+\(snapshot.nextActivities.count - 2) позже")
+                                .font(.dfWidgetBodyBold(9))
+                                .foregroundStyle(Color.dayflowWidgetMist)
+                                .lineLimit(1)
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+                }
             }
         }
-        .padding(14)
+        .padding(12)
     }
 }
 
@@ -226,31 +252,42 @@ private struct SmallShiftWidget: View {
     let snapshot: DayflowWidgetSnapshot
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            WidgetHeader(title: "смена", value: snapshot.scheduleName ?? "ручн.")
+        VStack(spacing: 8) {
+            WidgetTopBar(title: "смена", value: snapshot.scheduleName ?? "ручн.")
 
             Spacer(minLength: 0)
 
-            ZStack(alignment: .bottomLeading) {
+            ZStack {
                 ArcField()
-                    .opacity(0.28)
+                    .opacity(0.24)
+                    .frame(width: 106, height: 78)
+                    .offset(x: 16, y: -1)
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(spacing: 5) {
                     Text(snapshot.effectiveShift.title)
-                        .font(.dfWidgetDisplaySmall(24))
+                        .font(.dfWidgetDisplaySmall(21))
                         .foregroundStyle(Color.dayflowWidgetPaper)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.72)
+                        .minimumScaleFactor(0.54)
+                        .multilineTextAlignment(.center)
 
                     Text(snapshot.effectiveShift.widgetSubtitle)
-                        .font(.dfWidgetBody(12))
+                        .font(.dfWidgetBody(11))
                         .foregroundStyle(Color.dayflowWidgetMist)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
                 }
+                .frame(maxWidth: .infinity)
             }
+            .frame(maxWidth: .infinity)
+            .frame(height: 62)
+
+            Spacer(minLength: 0)
 
             ShiftBadge(shift: snapshot.effectiveShift, scheduleName: snapshot.scheduleName)
+                .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(14)
+        .padding(11)
     }
 }
 
@@ -295,6 +332,35 @@ private struct WidgetHeader: View {
                 QuickAddWidgetButton(size: 22)
             }
         }
+    }
+}
+
+private struct WidgetTopBar: View {
+    let title: String
+    let value: String
+    var showsQuickAdd = false
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Text(title)
+                .font(.dfWidgetBodyBold(10))
+                .foregroundStyle(Color.dayflowWidgetMist)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            Spacer(minLength: 4)
+
+            Text(value)
+                .font(.dfWidgetDisplaySmall(12))
+                .foregroundStyle(Color.dayflowWidgetLime)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+
+            if showsQuickAdd {
+                QuickAddWidgetButton(size: 22)
+            }
+        }
+        .frame(height: 22)
     }
 }
 
@@ -343,6 +409,53 @@ private struct ProgressOrb: View {
     }
 }
 
+private struct CompactActivityLine: View {
+    let activity: DayflowWidgetActivitySnapshot
+    let showsButton: Bool
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: activity.icon)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(activity.accent.widgetColor)
+                .frame(width: 18, height: 18)
+                .background(activity.accent.widgetColor.opacity(0.16), in: Circle())
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text(activity.title)
+                    .font(.dfWidgetBodyBold(11))
+                    .foregroundStyle(Color.dayflowWidgetPaper)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(activity.timeText)
+                    .font(.dfWidgetBody(9))
+                    .foregroundStyle(Color.dayflowWidgetMist)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 3)
+
+            if showsButton {
+                Button(intent: CompleteActivityIntent(activityID: activity.id.uuidString)) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 9, weight: .black))
+                        .foregroundStyle(Color.dayflowWidgetBlack)
+                        .frame(width: 20, height: 20)
+                        .background(Color.dayflowWidgetLime, in: Circle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(Color.dayflowWidgetPanel.opacity(0.78), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.dayflowWidgetPaper.opacity(0.06), lineWidth: 1)
+        }
+    }
+}
+
 private struct ActivityLine: View {
     let activity: DayflowWidgetActivitySnapshot
     let showsButton: Bool
@@ -385,6 +498,44 @@ private struct ActivityLine: View {
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        }
+    }
+}
+
+private struct CompactStatusPill: View {
+    let icon: String
+    let tint: Color
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .black))
+                .foregroundStyle(Color.dayflowWidgetBlack)
+                .frame(width: 22, height: 22)
+                .background(tint, in: Circle())
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.dfWidgetBodyBold(12))
+                    .foregroundStyle(Color.dayflowWidgetPaper)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+                Text(subtitle)
+                    .font(.dfWidgetBody(9))
+                    .foregroundStyle(Color.dayflowWidgetMist)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+        .padding(.horizontal, 9)
+        .background(Color.dayflowWidgetPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(Color.dayflowWidgetPaper.opacity(0.07), lineWidth: 1)
         }
     }
 }
@@ -508,7 +659,7 @@ private extension View {
                     colors: [
                         Color.dayflowWidgetPanel.opacity(0.95),
                         Color.dayflowWidgetBlack,
-                        Color.black
+                        Color.dayflowWidgetBlack.opacity(0.98)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
