@@ -309,6 +309,16 @@ public final class DayPlanStore: ObservableObject {
         activities = nextActivities
     }
 
+    public func applyOnboarding(_ plan: DayflowOnboardingPlan, on date: Date) throws {
+        for activity in DayflowOnboardingBuilder.makeActivities(from: plan) {
+            try add(activity, on: date)
+        }
+
+        if let schedule = DayflowOnboardingBuilder.makeShiftSchedule(from: plan, starting: date, calendar: calendar) {
+            try setShiftSchedule(schedule)
+        }
+    }
+
     public func setCompleted(_ id: UUID, _ completed: Bool) throws {
         var nextActivities = activities
 

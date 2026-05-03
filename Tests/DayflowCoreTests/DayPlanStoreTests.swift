@@ -328,6 +328,55 @@ final class DayPlanStoreTests: XCTestCase {
         XCTAssertEqual(storage.savedActivities.map(\.title), ["Бег", "Зал"])
     }
 
+    func testOnboardingShiftScenarioRecommendsWorkRecoveryAndBodyTemplates() throws {
+        let templates = DayflowOnboardingCatalog.recommendedTemplates(for: .shifts)
+
+        XCTAssertEqual(DayflowOnboardingScenario.shifts.title, "Сменный график")
+        XCTAssertEqual(templates.prefix(4).map(\.id), ["work", "sleep", "water", "gym"])
+        XCTAssertTrue(templates.allSatisfy { !$0.title.isEmpty && !$0.timeText.isEmpty })
+    }
+
+    func testOnboardingPlanBuildsSelectedActivitiesAndShiftSchedule() throws {
+        let start = date(year: 2026, month: 5, day: 3)
+        let plan = DayflowOnboardingPlan(
+            scenario: .shifts,
+            shiftPreset: .dayNightRest,
+            selectedTemplateIDs: ["run", "gym", "run", "missing"]
+        )
+
+        let activities = DayflowOnboardingBuilder.makeActivities(from: plan)
+        let schedule = DayflowOnboardingBuilder.makeShiftSchedule(from: plan, starting: start, calendar: testCalendar)
+
+        XCTAssertEqual(activities.map(\.title), ["Бег", "Зал"])
+        XCTAssertEqual(activities.map(\.timeText), ["7:00", "20:00"])
+        XCTAssertEqual(schedule?.preset, .dayNightRest)
+        XCTAssertEqual(schedule?.shift(on: start, calendar: testCalendar), .day)
+    }
+
+    func testApplyingOnboardingCreatesTodayActivitiesAndSchedule() throws {
+        let today = date(year: 2026, month: 5, day: 3)
+        let storage = MemoryActivityStorage()
+        let store = DayPlanStore(storage: storage, calendar: testCalendar, todayProvider: { today })
+        let plan = DayflowOnboardingPlan(
+            scenario: .body,
+            shiftPreset: .twoTwo,
+            selectedTemplateIDs: ["run", "meditation"]
+        )
+
+        try store.applyOnboarding(plan, on: today)
+
+        XCTAssertEqual(store.activities(on: today).map(\.title), ["Бег", "Медитация"])
+        XCTAssertEqual(
+            store.activities(on: today).map(\.dayID),
+            [
+                DayActivity.dayID(for: today, calendar: testCalendar),
+                DayActivity.dayID(for: today, calendar: testCalendar)
+            ]
+        )
+        XCTAssertEqual(store.shiftSchedule?.preset, .twoTwo)
+        XCTAssertEqual(store.effectiveShift(for: today), .day)
+    }
+
     func testFilteringUsesRealActivityCategory() throws {
         let store = DayPlanStore(storage: MemoryActivityStorage())
         try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky))

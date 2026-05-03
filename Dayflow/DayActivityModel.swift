@@ -248,6 +248,252 @@ public struct ShiftSchedule: Codable, Equatable, Identifiable {
     }
 }
 
+public enum DayflowOnboardingScenario: String, Codable, CaseIterable, Equatable, Identifiable {
+    case shifts
+    case body
+    case focus
+    case simple
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .shifts:
+            return "Сменный график"
+        case .body:
+            return "Спорт и рутина"
+        case .focus:
+            return "Фокус и дела"
+        case .simple:
+            return "Простой план дня"
+        }
+    }
+
+    public var subtitle: String {
+        switch self {
+        case .shifts:
+            return "Собери день вокруг работы, ночей и восстановления."
+        case .body:
+            return "Тренировки, сон, вода и ежедневная дисциплина."
+        case .focus:
+            return "Меньше шума, больше важных личных задач."
+        case .simple:
+            return "Лёгкий старт без сложных настроек."
+        }
+    }
+
+    public var icon: String {
+        switch self {
+        case .shifts:
+            return "calendar.badge.clock"
+        case .body:
+            return "figure.run"
+        case .focus:
+            return "target"
+        case .simple:
+            return "sparkles"
+        }
+    }
+}
+
+public struct DayflowOnboardingActivityTemplate: Codable, Equatable, Identifiable {
+    public var id: String
+    public var title: String
+    public var timeText: String
+    public var detail: String
+    public var category: DayActivityCategory
+    public var icon: String
+    public var accent: ActivityAccent
+
+    public init(
+        id: String,
+        title: String,
+        timeText: String,
+        detail: String,
+        category: DayActivityCategory,
+        icon: String,
+        accent: ActivityAccent
+    ) {
+        self.id = id
+        self.title = title
+        self.timeText = timeText
+        self.detail = detail
+        self.category = category
+        self.icon = icon
+        self.accent = accent
+    }
+
+    public var newActivity: NewDayActivity {
+        NewDayActivity(
+            title: title,
+            timeText: timeText,
+            detail: detail,
+            category: category,
+            icon: icon,
+            accent: accent
+        )
+    }
+}
+
+public struct DayflowOnboardingPlan: Codable, Equatable {
+    public var scenario: DayflowOnboardingScenario
+    public var shiftPreset: ShiftSchedulePreset?
+    public var selectedTemplateIDs: [String]
+
+    public init(
+        scenario: DayflowOnboardingScenario,
+        shiftPreset: ShiftSchedulePreset? = nil,
+        selectedTemplateIDs: [String]
+    ) {
+        self.scenario = scenario
+        self.shiftPreset = shiftPreset
+        self.selectedTemplateIDs = selectedTemplateIDs
+    }
+}
+
+public enum DayflowOnboardingCatalog {
+    public static let templates: [DayflowOnboardingActivityTemplate] = [
+        DayflowOnboardingActivityTemplate(
+            id: "work",
+            title: "Работа",
+            timeText: "9:00",
+            detail: "Смена или основной рабочий блок",
+            category: .personal,
+            icon: "briefcase.fill",
+            accent: .lime
+        ),
+        DayflowOnboardingActivityTemplate(
+            id: "sleep",
+            title: "Сон",
+            timeText: "23:00",
+            detail: "Восстановление и режим",
+            category: .body,
+            icon: "bed.double.fill",
+            accent: .rose
+        ),
+        DayflowOnboardingActivityTemplate(
+            id: "water",
+            title: "Вода",
+            timeText: "10:00",
+            detail: "Не забыть пить воду",
+            category: .body,
+            icon: "drop.fill",
+            accent: .sky
+        ),
+        DayflowOnboardingActivityTemplate(
+            id: "gym",
+            title: "Зал",
+            timeText: "20:00",
+            detail: "Силовая тренировка",
+            category: .body,
+            icon: "dumbbell.fill",
+            accent: .lime
+        ),
+        DayflowOnboardingActivityTemplate(
+            id: "run",
+            title: "Бег",
+            timeText: "7:00",
+            detail: "Парк или дорожка",
+            category: .body,
+            icon: "figure.run",
+            accent: .sky
+        ),
+        DayflowOnboardingActivityTemplate(
+            id: "meditation",
+            title: "Медитация",
+            timeText: "22:00",
+            detail: "15 минут тишины",
+            category: .personal,
+            icon: "moon.fill",
+            accent: .rose
+        ),
+        DayflowOnboardingActivityTemplate(
+            id: "study",
+            title: "Учёба",
+            timeText: "18:00",
+            detail: "Фокус-блок без отвлечений",
+            category: .personal,
+            icon: "book.closed.fill",
+            accent: .lime
+        ),
+        DayflowOnboardingActivityTemplate(
+            id: "walk",
+            title: "Прогулка",
+            timeText: "19:00",
+            detail: "Разгрузить голову",
+            category: .body,
+            icon: "figure.walk",
+            accent: .sky
+        ),
+        DayflowOnboardingActivityTemplate(
+            id: "reading",
+            title: "Чтение",
+            timeText: "21:30",
+            detail: "Книга или конспект",
+            category: .personal,
+            icon: "text.book.closed.fill",
+            accent: .lime
+        ),
+        DayflowOnboardingActivityTemplate(
+            id: "stretch",
+            title: "Растяжка",
+            timeText: "8:30",
+            detail: "10 минут для тела",
+            category: .body,
+            icon: "figure.flexibility",
+            accent: .rose
+        )
+    ]
+
+    public static func recommendedTemplates(for scenario: DayflowOnboardingScenario) -> [DayflowOnboardingActivityTemplate] {
+        templateIDs(for: scenario).compactMap(template)
+    }
+
+    public static func template(id: String) -> DayflowOnboardingActivityTemplate? {
+        templates.first { $0.id == id }
+    }
+
+    private static func templateIDs(for scenario: DayflowOnboardingScenario) -> [String] {
+        switch scenario {
+        case .shifts:
+            return ["work", "sleep", "water", "gym", "run", "meditation"]
+        case .body:
+            return ["run", "gym", "water", "sleep", "walk", "stretch"]
+        case .focus:
+            return ["study", "meditation", "reading", "walk", "water", "sleep"]
+        case .simple:
+            return ["work", "water", "walk", "reading", "meditation", "sleep"]
+        }
+    }
+}
+
+public enum DayflowOnboardingBuilder {
+    public static func makeActivities(from plan: DayflowOnboardingPlan) -> [NewDayActivity] {
+        var seenIDs = Set<String>()
+
+        return plan.selectedTemplateIDs.compactMap { templateID in
+            guard seenIDs.insert(templateID).inserted,
+                  let template = DayflowOnboardingCatalog.template(id: templateID) else {
+                return nil
+            }
+
+            return template.newActivity
+        }
+    }
+
+    public static func makeShiftSchedule(
+        from plan: DayflowOnboardingPlan,
+        starting date: Date,
+        calendar: Calendar = .current
+    ) -> ShiftSchedule? {
+        guard let shiftPreset = plan.shiftPreset else {
+            return nil
+        }
+
+        return ShiftSchedule.makePreset(shiftPreset, starting: date, calendar: calendar)
+    }
+}
+
 public enum DayActivityValidationError: Error, Equatable {
     case blankTitle
     case invalidTime

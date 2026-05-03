@@ -48,6 +48,7 @@ struct DayflowHomeView: View {
     @State private var isShowingNotificationSettings = false
     @State private var isShowingStoreError = false
     @State private var storeErrorMessage = ""
+    @AppStorage("dayflow.onboarding.completed") private var hasCompletedOnboarding = false
     @AppStorage("dayflow.settings.liveBackdrop") private var liveBackdrop = true
     @AppStorage("dayflow.settings.showBackdropPhoto") private var showBackdropPhoto = true
     @AppStorage("dayflow.settings.showFineGrid") private var showFineGrid = true
@@ -146,6 +147,7 @@ struct DayflowHomeView: View {
                 notificationController.refreshStatus()
                 notificationController.rescheduleIfNeeded(store: store)
                 refreshCurrentDate()
+                markOnboardingCompleteForExistingUsers()
             }
             .onReceive(dayTicker) { tickDate in
                 refreshCurrentDate(using: tickDate)
@@ -175,6 +177,13 @@ struct DayflowHomeView: View {
             .sheet(isPresented: $isShowingNotificationSettings) {
                 DayflowNotificationSettingsSheet(store: store, controller: notificationController)
             }
+            .fullScreenCover(isPresented: onboardingPresentation) {
+                DayflowOnboardingView(
+                    today: currentDate,
+                    onFinish: completeOnboarding,
+                    onSkip: skipOnboarding
+                )
+            }
             .alert("Не удалось сохранить", isPresented: $isShowingStoreError) {
                 Button("Ок", role: .cancel) {}
             } message: {
@@ -182,6 +191,17 @@ struct DayflowHomeView: View {
             }
         }
         .dismissKeyboardOnTapOutside()
+    }
+
+    private var onboardingPresentation: Binding<Bool> {
+        Binding(
+            get: { !hasCompletedOnboarding },
+            set: { isPresented in
+                if !isPresented {
+                    hasCompletedOnboarding = true
+                }
+            }
+        )
     }
 
     private func toggleCompleted(_ activity: DayActivity) {
@@ -207,6 +227,764 @@ struct DayflowHomeView: View {
         if refreshedDate != currentDate {
             currentDate = refreshedDate
         }
+    }
+
+    private func completeOnboarding(_ plan: DayflowOnboardingPlan) {
+        do {
+            try store.applyOnboarding(plan, on: currentDate)
+            hasCompletedOnboarding = true
+            WidgetCenter.shared.reloadAllTimelines()
+            notificationController.rescheduleIfNeeded(store: store)
+        } catch {
+            storeErrorMessage = "Стартовый день не сохранился. Попробуй еще раз."
+            isShowingStoreError = true
+        }
+    }
+
+    private func skipOnboarding() {
+        hasCompletedOnboarding = true
+    }
+
+    private func markOnboardingCompleteForExistingUsers() {
+        guard !hasCompletedOnboarding else { return }
+
+        if !store.activities.isEmpty || !store.dayDetails.isEmpty || store.shiftSchedule != nil {
+            hasCompletedOnboarding = true
+        }
+    }
+}
+
+private enum DayflowOnboardingStep: Int, CaseIterable {
+    case intro
+    case scenario
+    case shift
+    case activities
+}
+
+private struct DayflowOnboardingView: View {
+    let today: Date
+    let onFinish: (DayflowOnboardingPlan) -> Void
+    let onSkip: () -> Void
+
+    @State private var step: DayflowOnboardingStep = .intro
+    @State private var selectedScenario: DayflowOnboardingScenario = .shifts
+    @State private var selectedShiftPreset: ShiftSchedulePreset? = .dayNightRest
+    @State private var selectedTemplateIDs: Set<String> = Set(["work", "sleep", "water"])
+
+    var body: some View {
+        GeometryReader { proxy in
+            let safeWidth = proxy.size.width.isFinite ? proxy.size.width : 390
+            let contentWidth = min(max(safeWidth - 36, 1), 390)
+
+            ZStack {
+                OnboardingBackdrop()
+
+                VStack(spacing: 0) {
+                    OnboardingTopBar(
+                        step: step,
+                        canGoBack: step != .intro,
+                        onBack: goBack,
+                        onSkip: onSkip
+                    )
+                    .frame(width: contentWidth)
+                    .padding(.top, 10)
+
+                    TabView(selection: $step) {
+                        OnboardingIntroPage(today: today)
+                            .tag(DayflowOnboardingStep.intro)
+
+                        OnboardingScenarioPage(selectedScenario: $selectedScenario)
+                            .tag(DayflowOnboardingStep.scenario)
+
+                        OnboardingShiftPage(selectedPreset: $selectedShiftPreset)
+                            .tag(DayflowOnboardingStep.shift)
+
+                        OnboardingActivityTemplatePage(
+                            scenario: selectedScenario,
+                            selectedTemplateIDs: $selectedTemplateIDs
+                        )
+                        .tag(DayflowOnboardingStep.activities)
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    .animation(.spring(response: 0.42, dampingFraction: 0.88), value: step)
+                    .frame(width: contentWidth)
+
+                    OnboardingPrimaryButton(
+                        title: primaryButtonTitle,
+                        subtitle: primaryButtonSubtitle,
+                        isEnabled: canContinue,
+                        action: primaryAction
+                    )
+                    .frame(width: contentWidth)
+                    .padding(.bottom, 18)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .preferredColorScheme(.dark)
+        .onChange(of: selectedScenario) { _, scenario in
+            selectedTemplateIDs = Set(DayflowOnboardingCatalog.recommendedTemplates(for: scenario).prefix(3).map(\.id))
+            selectedShiftPreset = scenario == .shifts ? .dayNightRest : nil
+        }
+    }
+
+    private var primaryButtonTitle: String {
+        switch step {
+        case .intro:
+            return "Настроить мой день"
+        case .scenario:
+            return selectedScenario == .shifts ? "Выбрать график" : "Выбрать активности"
+        case .shift:
+            return "Выбрать активности"
+        case .activities:
+            return "Создать день"
+        }
+    }
+
+    private var primaryButtonSubtitle: String {
+        switch step {
+        case .intro:
+            return "без аккаунта и лишних настроек"
+        case .scenario:
+            return selectedScenario.title
+        case .shift:
+            return selectedShiftPreset?.title ?? "смены можно добавить позже"
+        case .activities:
+            return "\(selectedTemplateIDs.count) активности на сегодня"
+        }
+    }
+
+    private var canContinue: Bool {
+        step != .activities || !selectedTemplateIDs.isEmpty
+    }
+
+    private func primaryAction() {
+        switch step {
+        case .intro:
+            step = .scenario
+        case .scenario:
+            step = selectedScenario == .shifts ? .shift : .activities
+        case .shift:
+            step = .activities
+        case .activities:
+            onFinish(
+                DayflowOnboardingPlan(
+                    scenario: selectedScenario,
+                    shiftPreset: selectedShiftPreset,
+                    selectedTemplateIDs: orderedSelectedTemplateIDs
+                )
+            )
+        }
+    }
+
+    private func goBack() {
+        switch step {
+        case .intro:
+            break
+        case .scenario:
+            step = .intro
+        case .shift:
+            step = .scenario
+        case .activities:
+            step = selectedScenario == .shifts ? .shift : .scenario
+        }
+    }
+
+    private var orderedSelectedTemplateIDs: [String] {
+        DayflowOnboardingCatalog.recommendedTemplates(for: selectedScenario)
+            .map(\.id)
+            .filter { selectedTemplateIDs.contains($0) }
+    }
+}
+
+private struct OnboardingBackdrop: View {
+    var body: some View {
+        ZStack {
+            Color.dayflowBlack
+
+            LinearGradient(
+                colors: [
+                    Color.dayflowLime.opacity(0.16),
+                    Color.dayflowBlack.opacity(0.0),
+                    Color.dayflowRose.opacity(0.10)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            OnboardingArcField()
+                .stroke(Color.dayflowLime.opacity(0.10), style: StrokeStyle(lineWidth: 1, dash: [3, 9]))
+                .frame(width: 420, height: 420)
+                .offset(x: 120, y: -160)
+
+            OnboardingArcField()
+                .stroke(Color.dayflowPaper.opacity(0.055), style: StrokeStyle(lineWidth: 1, dash: [5, 12]))
+                .frame(width: 360, height: 360)
+                .offset(x: -170, y: 280)
+        }
+        .ignoresSafeArea()
+    }
+}
+
+private struct OnboardingTopBar: View {
+    let step: DayflowOnboardingStep
+    let canGoBack: Bool
+    let onBack: () -> Void
+    let onSkip: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button(action: onBack) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 14, weight: .black))
+                    .foregroundStyle(canGoBack ? Color.dayflowPaper : Color.dayflowMist.opacity(0.35))
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(Color.dayflowPanel.opacity(0.84)))
+            }
+            .buttonStyle(.plain)
+            .disabled(!canGoBack)
+
+            OnboardingProgressDots(step: step)
+
+            Spacer()
+
+            Button("Пропустить", action: onSkip)
+                .font(.dfBodyBold(13))
+                .foregroundStyle(Color.dayflowMist)
+        }
+    }
+}
+
+private struct OnboardingProgressDots: View {
+    let step: DayflowOnboardingStep
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(DayflowOnboardingStep.allCases, id: \.self) { item in
+                Capsule()
+                    .fill(item.rawValue <= step.rawValue ? Color.dayflowLime : Color.dayflowPaper.opacity(0.13))
+                    .frame(width: item == step ? 24 : 7, height: 7)
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 40)
+        .background(Capsule().fill(Color.dayflowPanel.opacity(0.60)))
+        .overlay(Capsule().stroke(Color.dayflowPaper.opacity(0.08), lineWidth: 1))
+    }
+}
+
+private struct OnboardingIntroPage: View {
+    let today: Date
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            Spacer(minLength: 20)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Dayflow")
+                    .font(.dfDisplay(54))
+                    .foregroundStyle(Color.dayflowPaper)
+                    .minimumScaleFactor(0.72)
+
+                Text("План дня, смены и личный ритм в одном месте.")
+                    .font(.dfDisplaySmall(25))
+                    .foregroundStyle(Color.dayflowLime)
+                    .lineLimit(3)
+            }
+
+            OnboardingHeroPanel(today: today)
+
+            VStack(spacing: 10) {
+                OnboardingValueRow(icon: "checkmark.circle.fill", title: "Сегодняшние дела", text: "Бег, зал, работа, фокус и личные задачи без лишнего шума.")
+                OnboardingValueRow(icon: "calendar.badge.clock", title: "Смены и восстановление", text: "График влияет на день, Dayflow учитывает это с самого старта.")
+                OnboardingValueRow(icon: "bell.badge.fill", title: "Виджеты и напоминания", text: "План виден на экране iPhone и возвращает в нужный момент.")
+            }
+
+            Spacer(minLength: 20)
+        }
+    }
+}
+
+private struct OnboardingHeroPanel: View {
+    let today: Date
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 34, style: .continuous)
+                .fill(Color.dayflowPanel.opacity(0.78))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 34, style: .continuous)
+                        .stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1)
+                )
+
+            HStack(alignment: .bottom, spacing: 18) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(dateText)
+                        .font(.dfBodyBold(12))
+                        .foregroundStyle(Color.dayflowMist)
+                        .textCase(.uppercase)
+
+                    Text("0%")
+                        .font(.dfDisplay(64))
+                        .foregroundStyle(Color.dayflowPaper)
+
+                    HStack(spacing: 8) {
+                        OnboardingMiniPill(title: "дела")
+                        OnboardingMiniPill(title: "смены")
+                        OnboardingMiniPill(title: "ритм")
+                    }
+                }
+
+                Spacer()
+
+                OnboardingRhythmMark()
+                    .frame(width: 104, height: 104)
+            }
+            .padding(22)
+        }
+        .frame(height: 210)
+    }
+
+    private var dateText: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "d MMMM"
+        return formatter.string(from: today)
+    }
+}
+
+private struct OnboardingMiniPill: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.dfBodyBold(11))
+            .foregroundStyle(Color.dayflowBlack)
+            .padding(.horizontal, 10)
+            .frame(height: 26)
+            .background(Capsule().fill(Color.dayflowLime))
+    }
+}
+
+private struct OnboardingValueRow: View {
+    let icon: String
+    let title: String
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 13) {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .black))
+                .foregroundStyle(Color.dayflowBlack)
+                .frame(width: 42, height: 42)
+                .background(Circle().fill(Color.dayflowLime))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.dfDisplaySmall(17))
+                    .foregroundStyle(Color.dayflowPaper)
+
+                Text(text)
+                    .font(.dfBody(12))
+                    .foregroundStyle(Color.dayflowMist)
+                    .lineLimit(2)
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.dayflowPanel.opacity(0.68))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.dayflowPaper.opacity(0.08), lineWidth: 1)
+        )
+    }
+}
+
+private struct OnboardingScenarioPage: View {
+    @Binding var selectedScenario: DayflowOnboardingScenario
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            OnboardingPageTitle(
+                eyebrow: "СЦЕНАРИЙ",
+                title: "Под что собрать Dayflow?",
+                subtitle: "Выбор только настроит первый день. Всё можно поменять позже."
+            )
+
+            VStack(spacing: 10) {
+                ForEach(DayflowOnboardingScenario.allCases) { scenario in
+                    OnboardingScenarioCard(
+                        scenario: scenario,
+                        isSelected: selectedScenario == scenario,
+                        action: { selectedScenario = scenario }
+                    )
+                }
+            }
+
+            Spacer(minLength: 12)
+        }
+        .padding(.top, 24)
+    }
+}
+
+private struct OnboardingShiftPage: View {
+    @Binding var selectedPreset: ShiftSchedulePreset?
+
+    private let options: [ShiftSchedulePreset?] = [nil, .twoTwo, .dayNightRest, .fiveTwo]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            OnboardingPageTitle(
+                eyebrow: "ГРАФИК",
+                title: "Есть смены?",
+                subtitle: "Старт графика будет с сегодняшнего дня. Свой сложный цикл можно настроить в календаре."
+            )
+
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                ForEach(Array(options.enumerated()), id: \.offset) { _, preset in
+                    OnboardingShiftOptionCard(
+                        preset: preset,
+                        isSelected: selectedPreset == preset,
+                        action: { selectedPreset = preset }
+                    )
+                }
+            }
+
+            Spacer(minLength: 12)
+        }
+        .padding(.top, 24)
+    }
+}
+
+private struct OnboardingActivityTemplatePage: View {
+    let scenario: DayflowOnboardingScenario
+    @Binding var selectedTemplateIDs: Set<String>
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            OnboardingPageTitle(
+                eyebrow: "ПЕРВЫЙ ДЕНЬ",
+                title: "Выбери стартовые активности",
+                subtitle: "Они сразу появятся на главном экране сегодня."
+            )
+
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                ForEach(DayflowOnboardingCatalog.recommendedTemplates(for: scenario)) { template in
+                    OnboardingTemplateCard(
+                        template: template,
+                        isSelected: selectedTemplateIDs.contains(template.id),
+                        action: { toggle(template.id) }
+                    )
+                }
+            }
+
+            Spacer(minLength: 12)
+        }
+        .padding(.top, 24)
+    }
+
+    private func toggle(_ templateID: String) {
+        if selectedTemplateIDs.contains(templateID) {
+            selectedTemplateIDs.remove(templateID)
+        } else {
+            selectedTemplateIDs.insert(templateID)
+        }
+    }
+}
+
+private struct OnboardingPageTitle: View {
+    let eyebrow: String
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(eyebrow)
+                .font(.dfBodyBold(12))
+                .foregroundStyle(Color.dayflowLime)
+
+            Text(title)
+                .font(.dfDisplay(34))
+                .foregroundStyle(Color.dayflowPaper)
+                .lineLimit(3)
+
+            Text(subtitle)
+                .font(.dfBody(14))
+                .foregroundStyle(Color.dayflowMist)
+                .lineLimit(3)
+        }
+    }
+}
+
+private struct OnboardingScenarioCard: View {
+    let scenario: DayflowOnboardingScenario
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: scenario.icon)
+                    .font(.system(size: 18, weight: .black))
+                    .foregroundStyle(isSelected ? Color.dayflowBlack : Color.dayflowLime)
+                    .frame(width: 48, height: 48)
+                    .background(Circle().fill(isSelected ? Color.dayflowLime : Color.dayflowBlack.opacity(0.34)))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(scenario.title)
+                        .font(.dfDisplaySmall(19))
+                        .foregroundStyle(Color.dayflowPaper)
+
+                    Text(scenario.subtitle)
+                        .font(.dfBody(12))
+                        .foregroundStyle(Color.dayflowMist)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 18, weight: .black))
+                    .foregroundStyle(isSelected ? Color.dayflowLime : Color.dayflowMist)
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .fill(Color.dayflowPanel.opacity(isSelected ? 0.92 : 0.68))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .stroke(isSelected ? Color.dayflowLime.opacity(0.48) : Color.dayflowPaper.opacity(0.08), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct OnboardingShiftOptionCard: View {
+    let preset: ShiftSchedulePreset?
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            cardContent
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 142, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(backgroundColor)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(borderColor, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var cardContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            titleRow
+
+            Text(subtitle)
+                .font(.dfBodyBold(11))
+                .foregroundStyle(subtitleColor)
+                .lineLimit(2)
+
+            Spacer(minLength: 0)
+
+            cycleDots
+        }
+    }
+
+    private var titleRow: some View {
+        HStack {
+            Text(title)
+                .font(.dfDisplaySmall(20))
+                .foregroundStyle(titleColor)
+                .lineLimit(2)
+
+            Spacer()
+
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 16, weight: .black))
+                .foregroundStyle(isSelected ? Color.dayflowBlack : Color.dayflowMist)
+        }
+    }
+
+    private var cycleDots: some View {
+        HStack(spacing: 4) {
+            ForEach(Array(cycle.prefix(7).enumerated()), id: \.offset) { _, shift in
+                Circle()
+                    .fill(isSelected ? Color.dayflowBlack.opacity(0.34) : shift.statsColor)
+                    .frame(width: 8, height: 8)
+            }
+        }
+    }
+
+    private var title: String {
+        preset?.title ?? "Без смен"
+    }
+
+    private var subtitle: String {
+        preset?.subtitle ?? "можно настроить позже"
+    }
+
+    private var cycle: [ShiftKind] {
+        preset?.cycle ?? [.none, .none, .none]
+    }
+
+    private var titleColor: Color {
+        isSelected ? Color.dayflowBlack : Color.dayflowPaper
+    }
+
+    private var subtitleColor: Color {
+        isSelected ? Color.dayflowBlack.opacity(0.66) : Color.dayflowMist
+    }
+
+    private var backgroundColor: Color {
+        isSelected ? Color.dayflowLime : Color.dayflowPanel.opacity(0.74)
+    }
+
+    private var borderColor: Color {
+        isSelected ? Color.dayflowLime.opacity(0.58) : Color.dayflowPaper.opacity(0.08)
+    }
+}
+
+private struct OnboardingTemplateCard: View {
+    let template: DayflowOnboardingActivityTemplate
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 11) {
+                HStack {
+                    Image(systemName: template.icon)
+                        .font(.system(size: 15, weight: .black))
+                        .foregroundStyle(template.accent.color)
+                        .frame(width: 38, height: 38)
+                        .background(Circle().fill(Color.dayflowBlack.opacity(0.30)))
+
+                    Spacer()
+
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 17, weight: .black))
+                        .foregroundStyle(isSelected ? Color.dayflowBlack : Color.dayflowMist)
+                }
+
+                Text(template.title)
+                    .font(.dfDisplaySmall(20))
+                    .foregroundStyle(isSelected ? Color.dayflowBlack : Color.dayflowPaper)
+                    .lineLimit(1)
+
+                Text(template.timeText)
+                    .font(.dfBodyBold(13))
+                    .foregroundStyle(isSelected ? Color.dayflowBlack.opacity(0.64) : Color.dayflowLime)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 136, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(isSelected ? Color.dayflowLime : Color.dayflowPanel.opacity(0.74))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(isSelected ? Color.dayflowLime.opacity(0.58) : Color.dayflowPaper.opacity(0.08), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct OnboardingPrimaryButton: View {
+    let title: String
+    let subtitle: String
+    let isEnabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.dfDisplaySmall(20))
+
+                    Text(subtitle)
+                        .font(.dfBodyBold(11))
+                        .opacity(0.66)
+                }
+
+                Spacer()
+
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 17, weight: .black))
+                    .frame(width: 42, height: 42)
+                    .background(Circle().fill(Color.dayflowBlack.opacity(0.16)))
+            }
+            .foregroundStyle(Color.dayflowBlack)
+            .padding(.leading, 20)
+            .padding(.trailing, 8)
+            .frame(height: 66)
+            .background(Capsule().fill(Color.dayflowLime))
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.42)
+    }
+}
+
+private struct OnboardingRhythmMark: View {
+    var body: some View {
+        Canvas { context, size in
+            guard size.width > 0, size.height > 0 else { return }
+            let center = CGPoint(x: size.width / 2, y: size.height / 2)
+
+            for index in 0..<5 {
+                let radius = CGFloat(17 + index * 10)
+                var path = Path()
+                path.addArc(
+                    center: center,
+                    radius: radius,
+                    startAngle: .degrees(210),
+                    endAngle: .degrees(Double(500 - index * 18)),
+                    clockwise: false
+                )
+                context.stroke(
+                    path,
+                    with: .color(index == 3 ? Color.dayflowLime : Color.dayflowPaper.opacity(0.18)),
+                    style: StrokeStyle(lineWidth: index == 3 ? 8 : 4, lineCap: .round)
+                )
+            }
+        }
+    }
+}
+
+private struct OnboardingArcField: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard rect.width.isFinite,
+              rect.height.isFinite,
+              rect.width > 0,
+              rect.height > 0 else {
+            return path
+        }
+
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        for index in 0..<8 {
+            path.addArc(
+                center: center,
+                radius: CGFloat(28 + index * 22),
+                startAngle: .degrees(78),
+                endAngle: .degrees(310),
+                clockwise: false
+            )
+        }
+        return path
     }
 }
 
