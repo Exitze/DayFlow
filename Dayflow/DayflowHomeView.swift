@@ -2810,8 +2810,7 @@ private struct DayflowSettingsView: View {
 
                 SettingsNotificationsBlock(
                     controller: notificationController,
-                    onOpenNotifications: onOpenNotifications,
-                    onSendTest: { notificationController.sendTestNotification(store: store) }
+                    onOpenNotifications: onOpenNotifications
                 )
 
                 SettingsLegalBlock { document in
@@ -3207,7 +3206,6 @@ private struct SettingsScheduleBlock: View {
 private struct SettingsNotificationsBlock: View {
     @ObservedObject var controller: DayflowNotificationController
     let onOpenNotifications: () -> Void
-    let onSendTest: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -3265,26 +3263,6 @@ private struct SettingsNotificationsBlock: View {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .stroke(Color.dayflowPaper.opacity(0.09), lineWidth: 1)
             )
-
-            if controller.isActive {
-                Button(action: onSendTest) {
-                    HStack {
-                        Text("Отправить тест")
-                            .font(.dfBodyBold(13))
-
-                        Spacer()
-
-                        Image(systemName: "paperplane.fill")
-                            .font(.system(size: 12, weight: .black))
-                    }
-                    .foregroundStyle(Color.dayflowLime)
-                    .padding(.horizontal, 16)
-                    .frame(height: 48)
-                    .background(Capsule().fill(Color.dayflowPanel.opacity(0.62)))
-                    .overlay(Capsule().stroke(Color.dayflowLime.opacity(0.22), lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-            }
         }
     }
 }
@@ -3411,28 +3389,6 @@ private struct DayflowNotificationSettingsSheet: View {
                         }
                         .buttonStyle(.plain)
                     }
-
-                    Button {
-                        controller.sendTestNotification(store: store)
-                    } label: {
-                        HStack {
-                            Text("Отправить тест")
-                                .font(.dfDisplaySmall(17))
-
-                            Spacer()
-
-                            Image(systemName: "paperplane.fill")
-                                .font(.system(size: 14, weight: .black))
-                        }
-                        .foregroundStyle(controller.settings.isEnabled ? Color.dayflowLime : Color.dayflowMist)
-                        .padding(.horizontal, 18)
-                        .frame(height: 56)
-                        .background(Capsule().fill(Color.dayflowPanel.opacity(0.72)))
-                        .overlay(Capsule().stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!controller.settings.isEnabled)
-                    .opacity(controller.settings.isEnabled ? 1 : 0.52)
 
                     if let errorMessage = controller.errorMessage {
                         Text(errorMessage)
@@ -3673,7 +3629,7 @@ private struct SettingsLegalBlock: View {
 
                 Spacer()
 
-                Text("для релиза")
+                Text("официально")
                     .font(.dfBodyBold(12))
                     .foregroundStyle(Color.dayflowMist)
             }

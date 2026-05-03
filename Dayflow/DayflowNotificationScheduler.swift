@@ -57,7 +57,6 @@ protocol DayflowNotificationScheduling {
     func permissionState() async -> DayflowNotificationPermissionState
     func requestAuthorization() async -> Bool
     func replacePendingRequests(with requests: [DayflowNotificationRequestSpec], calendar: Calendar) async throws -> Int
-    func sendTestNotification() async throws
 }
 
 struct DayflowUserNotificationScheduler: DayflowNotificationScheduling {
@@ -94,22 +93,6 @@ struct DayflowUserNotificationScheduler: DayflowNotificationScheduling {
         }
 
         return requests.count
-    }
-
-    func sendTestNotification() async throws {
-        let content = UNMutableNotificationContent()
-        content.title = "Dayflow · Тест"
-        content.body = "Уведомления подключены. Дальше Dayflow будет напоминать по твоему реальному плану."
-        content.sound = .default
-        content.userInfo = ["kind": "test"]
-
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
-        let request = UNNotificationRequest(
-            identifier: "\(DayflowNotificationPlanBuilder.identifierPrefix).test.\(UUID().uuidString)",
-            content: content,
-            trigger: trigger
-        )
-        try await add(request)
     }
 
     private func notificationRequest(from spec: DayflowNotificationRequestSpec, calendar: Calendar) -> UNNotificationRequest {
@@ -223,22 +206,6 @@ final class DayflowNotificationController: ObservableObject {
 
         Task {
             await applyCurrentSettings(store: store, shouldRequestPermission: false)
-        }
-    }
-
-    func sendTestNotification(store: DayPlanStore) {
-        Task {
-            await applyCurrentSettings(store: store, shouldRequestPermission: true)
-            guard permissionState.allowsScheduling else {
-                return
-            }
-
-            do {
-                try await scheduler.sendTestNotification()
-                errorMessage = nil
-            } catch {
-                errorMessage = "Тестовое уведомление не отправилось."
-            }
         }
     }
 
