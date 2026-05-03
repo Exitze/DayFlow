@@ -290,24 +290,33 @@ private struct DayflowOnboardingView: View {
                     .padding(.top, 10)
 
                     TabView(selection: $step) {
-                        OnboardingIntroPage(today: today)
+                        OnboardingPageFrame(contentWidth: contentWidth) {
+                            OnboardingIntroPage(today: today)
+                        }
                             .tag(DayflowOnboardingStep.intro)
 
-                        OnboardingScenarioPage(selectedScenario: $selectedScenario)
+                        OnboardingPageFrame(contentWidth: contentWidth) {
+                            OnboardingScenarioPage(selectedScenario: $selectedScenario)
+                        }
                             .tag(DayflowOnboardingStep.scenario)
 
-                        OnboardingShiftPage(selectedPreset: $selectedShiftPreset)
+                        OnboardingPageFrame(contentWidth: contentWidth) {
+                            OnboardingShiftPage(selectedPreset: $selectedShiftPreset)
+                        }
                             .tag(DayflowOnboardingStep.shift)
 
-                        OnboardingActivityTemplatePage(
-                            scenario: selectedScenario,
-                            selectedTemplateIDs: $selectedTemplateIDs
-                        )
+                        OnboardingPageFrame(contentWidth: contentWidth) {
+                            OnboardingActivityTemplatePage(
+                                scenario: selectedScenario,
+                                selectedTemplateIDs: $selectedTemplateIDs
+                            )
+                        }
                         .tag(DayflowOnboardingStep.activities)
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
                     .animation(.spring(response: 0.42, dampingFraction: 0.88), value: step)
-                    .frame(width: contentWidth)
+                    .frame(width: safeWidth)
+                    .clipped()
 
                     OnboardingPrimaryButton(
                         title: primaryButtonTitle,
@@ -394,6 +403,17 @@ private struct DayflowOnboardingView: View {
         DayflowOnboardingCatalog.recommendedTemplates(for: selectedScenario)
             .map(\.id)
             .filter { selectedTemplateIDs.contains($0) }
+    }
+}
+
+private struct OnboardingPageFrame<Content: View>: View {
+    let contentWidth: CGFloat
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
+            .frame(width: contentWidth)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 }
 
