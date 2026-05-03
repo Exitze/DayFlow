@@ -986,6 +986,124 @@ final class DayPlanStoreTests: XCTestCase {
         XCTAssertEqual(reloadedStore.effectiveShift(for: addingDays(4, to: start)), .morning)
     }
 
+    func testSchedulePersistsShiftPaySettingsAcrossLaunches() throws {
+        let start = date(year: 2026, month: 5, day: 2)
+        let storage = MemoryActivityStorage()
+        let firstStore = DayPlanStore(storage: storage, calendar: testCalendar, todayProvider: { start })
+        var schedule = ShiftSchedule.makePreset(.dayNightRest, starting: start, calendar: testCalendar)
+        schedule.paySettings[.day] = ShiftPaySettings(
+            startMinutes: 7 * 60,
+            endMinutes: 19 * 60,
+            hourlyRate: 850,
+            payMultiplier: 1.1,
+            overtimeThresholdMinutes: 9 * 60,
+            overtimeMultiplier: 1.8
+        )
+
+        try firstStore.setShiftSchedule(schedule)
+
+        let reloadedStore = DayPlanStore(storage: storage, calendar: testCalendar, todayProvider: { start })
+        let summary = try XCTUnwrap(reloadedStore.shiftWorkdaySummary(for: start))
+
+        XCTAssertEqual(summary.startTimeText, "7:00")
+        XCTAssertEqual(summary.endTimeText, "19:00")
+        XCTAssertEqual(summary.hourlyRate, 850, accuracy: 0.01)
+        XCTAssertEqual(summary.payMultiplier, 1.1, accuracy: 0.01)
+        XCTAssertEqual(summary.overtimeMultiplier, 1.8, accuracy: 0.01)
+        XCTAssertEqual(summary.overtimeMinutes, 3 * 60)
+    }
+
+    func testShiftWorkdaySummaryCalculatesOvernightPayAndOvertime() throws {
+        let start = date(year: 2026, month: 5, day: 2)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { start })
+        var schedule = ShiftSchedule.makePreset(.dayNightRest, starting: start, calendar: testCalendar)
+        schedule.paySettings[.night] = ShiftPaySettings(
+            startMinutes: 20 * 60,
+            endMinutes: 8 * 60,
+            hourlyRate: 1000,
+            payMultiplier: 1.5,
+            overtimeThresholdMinutes: 8 * 60,
+            overtimeMultiplier: 2
+        )
+        try store.setShiftSchedule(schedule)
+
+        let summary = try XCTUnwrap(store.shiftWorkdaySummary(for: addingDays(1, to: start)))
+
+        XCTAssertEqual(summary.shift, .night)
+        XCTAssertEqual(summary.startTimeText, "20:00")
+        XCTAssertEqual(summary.endTimeText, "8:00")
+        XCTAssertEqual(summary.totalMinutes, 12 * 60)
+        XCTAssertEqual(summary.regularMinutes, 8 * 60)
+        XCTAssertEqual(summary.overtimeMinutes, 4 * 60)
+        XCTAssertEqual(summary.estimatedPay, 24_000, accuracy: 0.01)
+    }
+
+    func testRestShiftSummaryHasZeroPaidHoursByDefault() throws {
+        let start = date(year: 2026, month: 5, day: 2)
+        let restDay = addingDays(3, to: start)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { start })
+        try store.setShiftSchedule(.makePreset(.dayNightRest, starting: start, calendar: testCalendar))
+
+        let summary = try XCTUnwrap(store.shiftWorkdaySummary(for: restDay))
+
+        XCTAssertEqual(summary.shift, .rest)
+        XCTAssertEqual(summary.totalMinutes, 0)
+        XCTAssertEqual(summary.estimatedPay, 0, accuracy: 0.01)
+    }
+
+    func testShiftPayrollSummaryBuildsMonthTotals() throws {
+        let may1 = date(year: 2026, month: 5, day: 1)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { may1 })
+        var schedule = ShiftSchedule.makePreset(.twoTwo, starting: may1, calendar: testCalendar)
+        schedule.paySettings[.day] = ShiftPaySettings(
+            startMinutes: 8 * 60,
+            endMinutes: 16 * 60,
+            hourlyRate: 1000,
+            payMultiplier: 1,
+            overtimeThresholdMinutes: 8 * 60,
+            overtimeMultiplier: 1.5
+        )
+        try store.setShiftSchedule(schedule)
+
+        let summary = store.shiftPayrollSummary(from: may1, to: addingDays(3, to: may1))
+
+        XCTAssertEqual(summary.workedDays, 2)
+        XCTAssertEqual(summary.totalMinutes, 16 * 60)
+        XCTAssertEqual(summary.overtimeMinutes, 0)
+        XCTAssertEqual(summary.estimatedPay, 16_000, accuracy: 0.01)
+    }
+
+    func testShiftConflictDetectionFlagsActivitiesInsideShiftWindow() throws {
+        let day = date(year: 2026, month: 5, day: 2)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { day })
+        var schedule = ShiftSchedule.makePreset(.twoTwo, starting: day, calendar: testCalendar)
+        schedule.paySettings[.day] = ShiftPaySettings(startMinutes: 8 * 60, endMinutes: 16 * 60, hourlyRate: 1000)
+        try store.setShiftSchedule(schedule)
+        try store.add(NewDayActivity(title: "Разминка", timeText: "7:30", detail: "до работы", category: .body, icon: "figure.run", accent: .sky), on: day)
+        try store.add(NewDayActivity(title: "Зал", timeText: "9:00", detail: "пересекается", category: .body, icon: "dumbbell.fill", accent: .lime), on: day)
+
+        let summary = try XCTUnwrap(store.shiftWorkdaySummary(for: day))
+
+        XCTAssertEqual(summary.conflicts.map(\.activityTitle), ["Зал"])
+    }
+
+    func testShiftExportTextIncludesMonthPayrollAndConflicts() throws {
+        let may1 = date(year: 2026, month: 5, day: 1)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { may1 })
+        var schedule = ShiftSchedule.makePreset(.twoTwo, starting: may1, calendar: testCalendar)
+        schedule.paySettings[.day] = ShiftPaySettings(startMinutes: 8 * 60, endMinutes: 16 * 60, hourlyRate: 1000)
+        try store.setShiftSchedule(schedule)
+        try store.add(NewDayActivity(title: "Зал", timeText: "9:00", detail: "пересекается", category: .body, icon: "dumbbell.fill", accent: .lime), on: may1)
+
+        let export = store.shiftExportText(forMonthContaining: may1)
+
+        XCTAssertTrue(export.contains("Май 2026"))
+        XCTAssertTrue(export.contains("16 смены"))
+        XCTAssertTrue(export.contains("128 ч"))
+        XCTAssertTrue(export.contains("128000 ₽"))
+        XCTAssertTrue(export.contains("Конфликты: 1"))
+    }
+
     func testStatsSummaryUsesRealActivitiesAcrossLastSevenDays() throws {
         let today = date(year: 2026, month: 5, day: 8)
         let yesterday = addingDays(-1, to: today)

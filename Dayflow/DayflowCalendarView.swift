@@ -42,6 +42,11 @@ struct DayflowCalendarView: View {
                     onClear: clearSchedule
                 )
 
+                ShiftWorkdaySummaryBlock(
+                    summary: selectedShiftSummary,
+                    exportText: store.shiftExportText(forMonthContaining: selectedDate)
+                )
+
                 ShiftPicker(
                     selectedShift: store.effectiveShift(for: selectedDate),
                     isOverridden: store.isShiftOverridden(for: selectedDate),
@@ -100,6 +105,10 @@ struct DayflowCalendarView: View {
 
     private var selectedActivities: [DayActivity] {
         store.activities(on: selectedDate)
+    }
+
+    private var selectedShiftSummary: ShiftWorkdaySummary? {
+        store.shiftWorkdaySummary(for: selectedDate)
     }
 
     private var monthDays: [CalendarDay] {
@@ -671,6 +680,195 @@ private struct ScheduleControlBlock: View {
     }
 }
 
+private struct ShiftWorkdaySummaryBlock: View {
+    let summary: ShiftWorkdaySummary?
+    let exportText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Смена и деньги")
+                    .font(.dfDisplaySmall(22))
+                    .foregroundStyle(Color.dayflowPaper)
+
+                Spacer()
+
+                if summary != nil {
+                    ShareLink(item: exportText) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 14, weight: .black))
+                            .foregroundStyle(Color.dayflowBlack)
+                            .frame(width: 36, height: 36)
+                            .background(Circle().fill(Color.dayflowLime))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Экспорт смен")
+                }
+            }
+
+            if let summary {
+                HStack(spacing: 10) {
+                    ShiftSummaryMetric(
+                        title: "Время",
+                        value: "\(summary.startTimeText)-\(summary.endTimeText)",
+                        accent: summary.shift.badgeColor,
+                        isCompact: true
+                    )
+
+                    ShiftSummaryMetric(
+                        title: "Часы",
+                        value: summary.totalHoursText,
+                        accent: Color.dayflowPaper.opacity(0.28),
+                        isCompact: true
+                    )
+
+                    ShiftSummaryMetric(
+                        title: "Оплата",
+                        value: summary.payText,
+                        accent: Color.dayflowLime.opacity(0.34),
+                        isCompact: true
+                    )
+                }
+
+                HStack(spacing: 10) {
+                    ShiftSummaryMetric(
+                        title: "Смена",
+                        value: summary.shift.title,
+                        accent: summary.shift.badgeColor,
+                        isCompact: false
+                    )
+
+                    ShiftSummaryMetric(
+                        title: "Сверх",
+                        value: ShiftWorkdaySummary.hoursText(summary.overtimeMinutes),
+                        accent: summary.overtimeMinutes > 0 ? Color.dayflowRose.opacity(0.45) : Color.dayflowPaper.opacity(0.16),
+                        isCompact: false
+                    )
+                }
+
+                if !summary.conflicts.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 13, weight: .black))
+                                .foregroundStyle(Color.dayflowRose)
+
+                            Text("Конфликты")
+                                .font(.dfBodyBold(12))
+                                .foregroundStyle(Color.dayflowPaper)
+
+                            Spacer()
+
+                            Text("\(summary.conflicts.count)")
+                                .font(.dfDisplaySmall(15))
+                                .foregroundStyle(Color.dayflowRose)
+                        }
+
+                        ForEach(summary.conflicts.prefix(3)) { conflict in
+                            HStack(spacing: 8) {
+                                Text(conflict.activityTimeText)
+                                    .font(.dfBodyBold(11))
+                                    .foregroundStyle(Color.dayflowRose)
+                                    .frame(width: 42, alignment: .leading)
+
+                                Text(conflict.activityTitle)
+                                    .font(.dfBodyBold(12))
+                                    .foregroundStyle(Color.dayflowMist)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                    .padding(13)
+                    .background(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .fill(Color.dayflowRose.opacity(0.12))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .stroke(Color.dayflowRose.opacity(0.22), lineWidth: 1)
+                    )
+                }
+            } else {
+                HStack(spacing: 13) {
+                    Image(systemName: "moon.zzz.fill")
+                        .font(.system(size: 17, weight: .black))
+                        .foregroundStyle(Color.dayflowBlack)
+                        .frame(width: 42, height: 42)
+                        .background(Circle().fill(Color.dayflowPaper))
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Без графика")
+                            .font(.dfDisplaySmall(18))
+                            .foregroundStyle(Color.dayflowPaper)
+
+                        Text("смена не назначена")
+                            .font(.dfBodyBold(11))
+                            .foregroundStyle(Color.dayflowMist)
+                    }
+
+                    Spacer()
+                }
+                .padding(14)
+                .background(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(Color.dayflowBlack.opacity(0.28))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1)
+                )
+            }
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Color.dayflowPanel.opacity(0.68))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1)
+        )
+    }
+}
+
+private struct ShiftSummaryMetric: View {
+    let title: String
+    let value: String
+    let accent: Color
+    let isCompact: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.dfBodyBold(10))
+                .foregroundStyle(Color.dayflowMist)
+                .textCase(.uppercase)
+
+            Text(value)
+                .font(.dfDisplaySmall(isCompact ? 15 : 18))
+                .foregroundStyle(Color.dayflowPaper)
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(13)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.dayflowBlack.opacity(0.34))
+        )
+        .overlay(alignment: .topTrailing) {
+            Circle()
+                .fill(accent)
+                .frame(width: 12, height: 12)
+                .padding(12)
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.dayflowPaper.opacity(0.08), lineWidth: 1)
+        )
+    }
+}
+
 private struct ScheduleCycleStrip: View {
     let cycle: [ShiftKind]
 
@@ -702,6 +900,8 @@ private struct ScheduleBuilderSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var formula: ShiftScheduleFormula
     @State private var selectedPreset: ShiftSchedulePreset?
+    @State private var dayPaySettings: ShiftPaySettings
+    @State private var nightPaySettings: ShiftPaySettings
     @State private var errorText: String?
 
     private let calendar = Calendar.current
@@ -729,6 +929,8 @@ private struct ScheduleBuilderSheet: View {
 
         _formula = State(initialValue: ShiftScheduleFormula(cycle: initialCycle))
         _selectedPreset = State(initialValue: selectedPreset)
+        _dayPaySettings = State(initialValue: currentSchedule?.paySettings(for: .day) ?? ShiftPaySettings.defaultSettings(for: .day))
+        _nightPaySettings = State(initialValue: currentSchedule?.paySettings(for: .night) ?? ShiftPaySettings.defaultSettings(for: .night))
     }
 
     var body: some View {
@@ -806,6 +1008,11 @@ private struct ScheduleBuilderSheet: View {
                             )
                         }
                     }
+
+                    SchedulePaySettingsBlock(
+                        daySettings: $dayPaySettings,
+                        nightSettings: $nightPaySettings
+                    )
 
                     VStack(alignment: .leading, spacing: 12) {
                         HStack(alignment: .firstTextBaseline) {
@@ -935,12 +1142,15 @@ private struct ScheduleBuilderSheet: View {
 
     private func apply() {
         do {
-            let schedule: ShiftSchedule
+            var schedule: ShiftSchedule
             if let selectedPreset {
                 schedule = .makePreset(selectedPreset, starting: startDate, calendar: calendar)
             } else {
                 schedule = try .makeCustom(formula: formula, starting: startDate, calendar: calendar)
             }
+
+            schedule.paySettings[.day] = dayPaySettings
+            schedule.paySettings[.night] = nightPaySettings
 
             try onApply(schedule)
             dismiss()
@@ -1083,6 +1293,228 @@ private struct ScheduleCounterButton: View {
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
+    }
+}
+
+private struct SchedulePaySettingsBlock: View {
+    @Binding var daySettings: ShiftPaySettings
+    @Binding var nightSettings: ShiftPaySettings
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Оплата и время")
+                .font(.dfBodyBold(12))
+                .foregroundStyle(Color.dayflowMist)
+                .textCase(.uppercase)
+
+            VStack(spacing: 10) {
+                ShiftPaySettingsEditor(
+                    title: "День",
+                    symbol: "Д",
+                    color: Color.dayflowLime,
+                    settings: $daySettings
+                )
+
+                ShiftPaySettingsEditor(
+                    title: "Ночь",
+                    symbol: "Н",
+                    color: Color.dayflowRose,
+                    settings: $nightSettings
+                )
+            }
+        }
+    }
+}
+
+private struct ShiftPaySettingsEditor: View {
+    let title: String
+    let symbol: String
+    let color: Color
+    @Binding var settings: ShiftPaySettings
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Text(symbol)
+                    .font(.dfDisplaySmall(18))
+                    .foregroundStyle(symbol == "Н" ? Color.dayflowPaper : Color.dayflowBlack)
+                    .frame(width: 42, height: 42)
+                    .background(Circle().fill(color))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.dfDisplaySmall(17))
+                        .foregroundStyle(Color.dayflowPaper)
+
+                    Text("\(settings.startTimeText)-\(settings.endTimeText) · \(ShiftWorkdaySummary.hoursText(settings.durationMinutes))")
+                        .font(.dfBodyBold(11))
+                        .foregroundStyle(Color.dayflowMist)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+                }
+
+                Spacer()
+            }
+
+            HStack(spacing: 8) {
+                ScheduleValueStepper(title: "Старт", value: settings.startTimeText) {
+                    changeStart(by: -60)
+                } onIncrement: {
+                    changeStart(by: 60)
+                }
+
+                ScheduleValueStepper(title: "Финиш", value: settings.endTimeText) {
+                    changeEnd(by: -60)
+                } onIncrement: {
+                    changeEnd(by: 60)
+                }
+            }
+
+            HStack(spacing: 8) {
+                ScheduleValueStepper(title: "Ставка", value: "\(Int(settings.hourlyRate.rounded())) ₽") {
+                    changeRate(by: -100)
+                } onIncrement: {
+                    changeRate(by: 100)
+                }
+
+                ScheduleValueStepper(title: "Коэф.", value: multiplierText(settings.payMultiplier)) {
+                    changeMultiplier(by: -0.1)
+                } onIncrement: {
+                    changeMultiplier(by: 0.1)
+                }
+            }
+
+            HStack(spacing: 8) {
+                ScheduleValueStepper(title: "Сверх", value: ShiftWorkdaySummary.hoursText(settings.overtimeThresholdMinutes)) {
+                    changeOvertimeThreshold(by: -60)
+                } onIncrement: {
+                    changeOvertimeThreshold(by: 60)
+                }
+
+                ScheduleValueStepper(title: "OT коэф.", value: multiplierText(settings.overtimeMultiplier)) {
+                    changeOvertimeMultiplier(by: -0.1)
+                } onIncrement: {
+                    changeOvertimeMultiplier(by: 0.1)
+                }
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.dayflowPanel.opacity(0.82))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1)
+        )
+    }
+
+    private func changeStart(by delta: Int) {
+        settings = copy(startMinutes: shifted(settings.startMinutes, by: delta))
+    }
+
+    private func changeEnd(by delta: Int) {
+        settings = copy(endMinutes: shifted(settings.endMinutes, by: delta))
+    }
+
+    private func changeRate(by delta: Double) {
+        settings = copy(hourlyRate: max(0, settings.hourlyRate + delta))
+    }
+
+    private func changeMultiplier(by delta: Double) {
+        settings = copy(payMultiplier: min(max(0, settings.payMultiplier + delta), 5))
+    }
+
+    private func changeOvertimeThreshold(by delta: Int) {
+        settings = copy(overtimeThresholdMinutes: min(max(0, settings.overtimeThresholdMinutes + delta), 24 * 60))
+    }
+
+    private func changeOvertimeMultiplier(by delta: Double) {
+        settings = copy(overtimeMultiplier: min(max(1, settings.overtimeMultiplier + delta), 5))
+    }
+
+    private func copy(
+        startMinutes: Int? = nil,
+        endMinutes: Int? = nil,
+        hourlyRate: Double? = nil,
+        payMultiplier: Double? = nil,
+        overtimeThresholdMinutes: Int? = nil,
+        overtimeMultiplier: Double? = nil
+    ) -> ShiftPaySettings {
+        ShiftPaySettings(
+            startMinutes: startMinutes ?? settings.startMinutes,
+            endMinutes: endMinutes ?? settings.endMinutes,
+            hourlyRate: hourlyRate ?? settings.hourlyRate,
+            payMultiplier: payMultiplier ?? settings.payMultiplier,
+            overtimeThresholdMinutes: overtimeThresholdMinutes ?? settings.overtimeThresholdMinutes,
+            overtimeMultiplier: overtimeMultiplier ?? settings.overtimeMultiplier
+        )
+    }
+
+    private func shifted(_ minutes: Int, by delta: Int) -> Int {
+        let dayMinutes = 24 * 60
+        return ((minutes + delta) % dayMinutes + dayMinutes) % dayMinutes
+    }
+
+    private func multiplierText(_ value: Double) -> String {
+        "x\(String(format: "%.1f", value))"
+    }
+}
+
+private struct ScheduleValueStepper: View {
+    let title: String
+    let value: String
+    let onDecrement: () -> Void
+    let onIncrement: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.dfBodyBold(9))
+                    .foregroundStyle(Color.dayflowMist)
+                    .textCase(.uppercase)
+
+                Text(value)
+                    .font(.dfDisplaySmall(13))
+                    .foregroundStyle(Color.dayflowPaper)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+            }
+
+            Spacer(minLength: 2)
+
+            ScheduleMiniButton(systemName: "minus", action: onDecrement)
+            ScheduleMiniButton(systemName: "plus", action: onIncrement)
+        }
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity)
+        .frame(height: 46)
+        .background(
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .fill(Color.dayflowBlack.opacity(0.34))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .stroke(Color.dayflowPaper.opacity(0.08), lineWidth: 1)
+        )
+    }
+}
+
+private struct ScheduleMiniButton: View {
+    let systemName: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 9, weight: .black))
+                .foregroundStyle(Color.dayflowPaper)
+                .frame(width: 24, height: 24)
+                .background(Circle().fill(Color.dayflowPanel.opacity(0.92)))
+                .overlay(Circle().stroke(Color.dayflowPaper.opacity(0.08), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
     }
 }
 

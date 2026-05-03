@@ -343,6 +343,58 @@ public final class DayPlanStore: ObservableObject {
         return statsSummary(from: monthStart, to: monthEnd)
     }
 
+    public func shiftWorkdaySummary(for date: Date) -> ShiftWorkdaySummary? {
+        let shift = effectiveShift(for: date)
+        guard shift != .none || shiftSchedule != nil || isShiftOverridden(for: date) else {
+            return nil
+        }
+
+        let settings = shiftSchedule?.paySettings(for: shift) ?? ShiftPaySettings.defaultSettings(for: shift)
+        return ShiftWorkdaySummary(
+            dayID: dayID(for: date),
+            date: date,
+            shift: shift,
+            settings: settings,
+            conflicts: shiftConflicts(on: date, settings: settings)
+        )
+    }
+
+    public func shiftPayrollSummary(forMonthContaining date: Date) -> ShiftMonthPayrollSummary {
+        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: date)) ?? calendar.startOfDay(for: date)
+        let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthStart) ?? monthStart
+        let monthEnd = calendar.date(byAdding: .day, value: -1, to: nextMonth) ?? monthStart
+        return shiftPayrollSummary(from: monthStart, to: monthEnd)
+    }
+
+    public func shiftPayrollSummary(from startDate: Date, to endDate: Date) -> ShiftMonthPayrollSummary {
+        let start = calendar.startOfDay(for: min(startDate, endDate))
+        let end = calendar.startOfDay(for: max(startDate, endDate))
+        let daySpan = calendar.dateComponents([.day], from: start, to: end).day ?? 0
+        let dates = (0...max(0, daySpan)).compactMap { offset in
+            calendar.date(byAdding: .day, value: offset, to: start)
+        }
+        let days = dates.compactMap { shiftWorkdaySummary(for: $0) }
+        return ShiftMonthPayrollSummary(startDate: start, endDate: end, days: days)
+    }
+
+    public func shiftExportText(forMonthContaining date: Date) -> String {
+        let summary = shiftPayrollSummary(forMonthContaining: date)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "LLLL yyyy"
+        let monthText = formatter.string(from: date).capitalized
+        let hoursText = ShiftWorkdaySummary.hoursText(summary.totalMinutes)
+        let payText = "\(Int(summary.estimatedPay.rounded())) ₽"
+
+        return [
+            "Dayflow · \(monthText)",
+            "\(summary.workedDays) смены",
+            "Часы: \(hoursText)",
+            "Оплата: \(payText)",
+            "Конфликты: \(summary.conflicts.count)"
+        ].joined(separator: "\n")
+    }
+
     public func statsSummary(from startDate: Date, to endDate: Date) -> DayStatsSummary {
         let start = calendar.startOfDay(for: min(startDate, endDate))
         let end = calendar.startOfDay(for: max(startDate, endDate))
@@ -802,6 +854,24 @@ public final class DayPlanStore: ObservableObject {
         nextActivities[index].isCompleted = isCompleted
         try storage.saveActivities(nextActivities)
         activities = nextActivities
+    }
+
+    private func shiftConflicts(on date: Date, settings: ShiftPaySettings) -> [ShiftConflict] {
+        guard settings.durationMinutes > 0 else {
+            return []
+        }
+
+        let shiftStart = settings.startMinutes
+        let shiftEnd = settings.startMinutes + settings.durationMinutes
+
+        return storedActivities(on: date).compactMap { activity in
+            let activityMinute = activity.timeMinutes
+            guard activityMinute >= shiftStart && activityMinute < shiftEnd else {
+                return nil
+            }
+
+            return ShiftConflict(activityID: activity.id, activityTitle: activity.title, activityTimeText: activity.timeText)
+        }
     }
 
     private func habitCurrentStreak(for habit: DayHabit, endingOn date: Date) -> Int {

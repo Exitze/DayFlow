@@ -119,6 +119,72 @@ public enum ShiftScheduleValidationError: Error, Equatable {
     case emptyCycle
 }
 
+public struct ShiftPaySettings: Codable, Equatable {
+    public var startMinutes: Int
+    public var endMinutes: Int
+    public var hourlyRate: Double
+    public var payMultiplier: Double
+    public var overtimeThresholdMinutes: Int
+    public var overtimeMultiplier: Double
+
+    public init(
+        startMinutes: Int,
+        endMinutes: Int,
+        hourlyRate: Double,
+        payMultiplier: Double = 1,
+        overtimeThresholdMinutes: Int = 8 * 60,
+        overtimeMultiplier: Double = 1.5
+    ) {
+        self.startMinutes = Self.clampMinutes(startMinutes)
+        self.endMinutes = Self.clampMinutes(endMinutes)
+        self.hourlyRate = max(0, hourlyRate)
+        self.payMultiplier = max(0, payMultiplier)
+        self.overtimeThresholdMinutes = max(0, overtimeThresholdMinutes)
+        self.overtimeMultiplier = max(0, overtimeMultiplier)
+    }
+
+    public var durationMinutes: Int {
+        if startMinutes == endMinutes {
+            return 0
+        }
+
+        if endMinutes > startMinutes {
+            return endMinutes - startMinutes
+        }
+
+        return (24 * 60 - startMinutes) + endMinutes
+    }
+
+    public var startTimeText: String {
+        DayActivity.timeText(from: startMinutes)
+    }
+
+    public var endTimeText: String {
+        DayActivity.timeText(from: endMinutes)
+    }
+
+    public static func defaultSettings(for shift: ShiftKind) -> ShiftPaySettings {
+        switch shift {
+        case .none, .recovery, .rest:
+            return ShiftPaySettings(startMinutes: 0, endMinutes: 0, hourlyRate: 0)
+        case .morning:
+            return ShiftPaySettings(startMinutes: 6 * 60, endMinutes: 14 * 60, hourlyRate: 0)
+        case .day:
+            return ShiftPaySettings(startMinutes: 8 * 60, endMinutes: 20 * 60, hourlyRate: 0)
+        case .night:
+            return ShiftPaySettings(startMinutes: 20 * 60, endMinutes: 8 * 60, hourlyRate: 0, payMultiplier: 1.2)
+        }
+    }
+
+    public static func defaultScheduleSettings() -> [ShiftKind: ShiftPaySettings] {
+        Dictionary(uniqueKeysWithValues: ShiftKind.allCases.map { ($0, defaultSettings(for: $0)) })
+    }
+
+    private static func clampMinutes(_ minutes: Int) -> Int {
+        min(max(minutes, 0), 23 * 60 + 59)
+    }
+}
+
 public struct ShiftScheduleFormula: Codable, Equatable {
     public var dayCount: Int
     public var nightCount: Int
@@ -167,6 +233,7 @@ public struct ShiftSchedule: Codable, Equatable, Identifiable {
     public var startDayID: String
     public var cycle: [ShiftKind]
     public var isEnabled: Bool
+    public var paySettings: [ShiftKind: ShiftPaySettings]
 
     public init(
         id: UUID = UUID(),
@@ -174,7 +241,8 @@ public struct ShiftSchedule: Codable, Equatable, Identifiable {
         name: String,
         startDayID: String,
         cycle: [ShiftKind],
-        isEnabled: Bool = true
+        isEnabled: Bool = true,
+        paySettings: [ShiftKind: ShiftPaySettings] = ShiftPaySettings.defaultScheduleSettings()
     ) {
         self.id = id
         self.preset = preset
@@ -182,6 +250,40 @@ public struct ShiftSchedule: Codable, Equatable, Identifiable {
         self.startDayID = startDayID
         self.cycle = cycle
         self.isEnabled = isEnabled
+        self.paySettings = paySettings
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case preset
+        case name
+        case startDayID
+        case cycle
+        case isEnabled
+        case paySettings
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(UUID.self, forKey: .id)
+        self.preset = try container.decode(ShiftSchedulePreset.self, forKey: .preset)
+        self.name = try container.decode(String.self, forKey: .name)
+        self.startDayID = try container.decode(String.self, forKey: .startDayID)
+        self.cycle = try container.decode([ShiftKind].self, forKey: .cycle)
+        self.isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
+        self.paySettings = try container.decodeIfPresent([ShiftKind: ShiftPaySettings].self, forKey: .paySettings)
+            ?? ShiftPaySettings.defaultScheduleSettings()
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(preset, forKey: .preset)
+        try container.encode(name, forKey: .name)
+        try container.encode(startDayID, forKey: .startDayID)
+        try container.encode(cycle, forKey: .cycle)
+        try container.encode(isEnabled, forKey: .isEnabled)
+        try container.encode(paySettings, forKey: .paySettings)
     }
 
     public static func makePreset(
@@ -227,6 +329,10 @@ public struct ShiftSchedule: Codable, Equatable, Identifiable {
         let dayOffset = calendar.dateComponents([.day], from: start, to: target).day ?? 0
         let cycleIndex = ((dayOffset % cycle.count) + cycle.count) % cycle.count
         return cycle[cycleIndex]
+    }
+
+    public func paySettings(for shift: ShiftKind) -> ShiftPaySettings {
+        paySettings[shift] ?? ShiftPaySettings.defaultSettings(for: shift)
     }
 
     private static func date(fromDayID dayID: String, calendar: Calendar) -> Date? {
@@ -1233,6 +1339,112 @@ public struct DayStatsShift: Equatable, Identifiable {
     public init(shift: ShiftKind, dayCount: Int) {
         self.shift = shift
         self.dayCount = dayCount
+    }
+}
+
+public struct ShiftConflict: Equatable, Identifiable {
+    public var id: UUID
+    public var activityID: UUID
+    public var activityTitle: String
+    public var activityTimeText: String
+
+    public init(id: UUID = UUID(), activityID: UUID, activityTitle: String, activityTimeText: String) {
+        self.id = id
+        self.activityID = activityID
+        self.activityTitle = activityTitle
+        self.activityTimeText = activityTimeText
+    }
+}
+
+public struct ShiftWorkdaySummary: Equatable, Identifiable {
+    public var id: String { dayID }
+    public var dayID: String
+    public var date: Date
+    public var shift: ShiftKind
+    public var startMinutes: Int
+    public var endMinutes: Int
+    public var totalMinutes: Int
+    public var regularMinutes: Int
+    public var overtimeMinutes: Int
+    public var hourlyRate: Double
+    public var payMultiplier: Double
+    public var overtimeMultiplier: Double
+    public var estimatedPay: Double
+    public var conflicts: [ShiftConflict]
+
+    public var startTimeText: String {
+        DayActivity.timeText(from: startMinutes)
+    }
+
+    public var endTimeText: String {
+        DayActivity.timeText(from: endMinutes)
+    }
+
+    public var totalHoursText: String {
+        Self.hoursText(totalMinutes)
+    }
+
+    public var payText: String {
+        "\(Int(estimatedPay.rounded())) ₽"
+    }
+
+    public init(dayID: String, date: Date, shift: ShiftKind, settings: ShiftPaySettings, conflicts: [ShiftConflict] = []) {
+        self.dayID = dayID
+        self.date = date
+        self.shift = shift
+        self.startMinutes = settings.startMinutes
+        self.endMinutes = settings.endMinutes
+        self.totalMinutes = settings.durationMinutes
+        self.regularMinutes = min(settings.durationMinutes, settings.overtimeThresholdMinutes)
+        self.overtimeMinutes = max(0, settings.durationMinutes - settings.overtimeThresholdMinutes)
+        self.hourlyRate = settings.hourlyRate
+        self.payMultiplier = settings.payMultiplier
+        self.overtimeMultiplier = settings.overtimeMultiplier
+        let regularPay = (Double(regularMinutes) / 60) * settings.hourlyRate * settings.payMultiplier
+        let overtimePay = (Double(overtimeMinutes) / 60) * settings.hourlyRate * settings.payMultiplier * settings.overtimeMultiplier
+        self.estimatedPay = regularPay + overtimePay
+        self.conflicts = conflicts
+    }
+
+    public static func hoursText(_ minutes: Int) -> String {
+        let hours = Double(minutes) / 60
+        if minutes % 60 == 0 {
+            return "\(minutes / 60) ч"
+        }
+
+        return String(format: "%.1f ч", hours)
+    }
+}
+
+public struct ShiftMonthPayrollSummary: Equatable {
+    public var startDate: Date
+    public var endDate: Date
+    public var days: [ShiftWorkdaySummary]
+
+    public var workedDays: Int {
+        days.filter { $0.totalMinutes > 0 }.count
+    }
+
+    public var totalMinutes: Int {
+        days.reduce(0) { $0 + $1.totalMinutes }
+    }
+
+    public var overtimeMinutes: Int {
+        days.reduce(0) { $0 + $1.overtimeMinutes }
+    }
+
+    public var estimatedPay: Double {
+        days.reduce(0) { $0 + $1.estimatedPay }
+    }
+
+    public var conflicts: [ShiftConflict] {
+        days.flatMap(\.conflicts)
+    }
+
+    public init(startDate: Date, endDate: Date, days: [ShiftWorkdaySummary]) {
+        self.startDate = startDate
+        self.endDate = endDate
+        self.days = days
     }
 }
 

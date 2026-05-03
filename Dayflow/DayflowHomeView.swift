@@ -1842,6 +1842,13 @@ private struct DayflowStatsView: View {
 
                 StatsCategoryBlock(stats: stats.categoryStats)
 
+                StatsPayrollBlock(
+                    summary: payrollSummary,
+                    selectedSummary: selectedShiftSummary,
+                    periodTitle: payrollPeriodTitle,
+                    exportText: payrollExportText
+                )
+
                 StatsShiftBlock(
                     shiftStats: stats.shiftStats,
                     selectedDate: selectedDate,
@@ -1854,6 +1861,45 @@ private struct DayflowStatsView: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .scrollBounceBehavior(.basedOnSize)
+    }
+
+    private var payrollSummary: ShiftMonthPayrollSummary {
+        switch periodMode {
+        case .week:
+            let start = stats.days.first?.date ?? selectedDate
+            let end = stats.days.last?.date ?? selectedDate
+            return store.shiftPayrollSummary(from: start, to: end)
+        case .month:
+            return store.shiftPayrollSummary(forMonthContaining: selectedDate)
+        }
+    }
+
+    private var selectedShiftSummary: ShiftWorkdaySummary? {
+        store.shiftWorkdaySummary(for: selectedDate)
+    }
+
+    private var payrollPeriodTitle: String {
+        switch periodMode {
+        case .week:
+            return "7 дней"
+        case .month:
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "ru_RU")
+            formatter.dateFormat = "LLLL yyyy"
+            return formatter.string(from: selectedDate).capitalized
+        }
+    }
+
+    private var payrollExportText: String {
+        let summary = payrollSummary
+        return [
+            "Dayflow · \(payrollPeriodTitle)",
+            "\(summary.workedDays) смены",
+            "Часы: \(ShiftWorkdaySummary.hoursText(summary.totalMinutes))",
+            "Сверх: \(ShiftWorkdaySummary.hoursText(summary.overtimeMinutes))",
+            "Оплата: \(Int(summary.estimatedPay.rounded())) ₽",
+            "Конфликты: \(summary.conflicts.count)"
+        ].joined(separator: "\n")
     }
 
     private var monthOptions: [StatsMonthOption] {
@@ -2449,6 +2495,164 @@ private struct StatsCategoryRow: View {
         .overlay(
             RoundedRectangle(cornerRadius: 25, style: .continuous)
                 .stroke(Color.dayflowPaper.opacity(0.09), lineWidth: 1)
+        )
+    }
+}
+
+private struct StatsPayrollBlock: View {
+    let summary: ShiftMonthPayrollSummary
+    let selectedSummary: ShiftWorkdaySummary?
+    let periodTitle: String
+    let exportText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Зарплата")
+                        .font(.dfDisplaySmall(22))
+                        .foregroundStyle(Color.dayflowPaper)
+
+                    Text(periodTitle)
+                        .font(.dfBodyBold(12))
+                        .foregroundStyle(Color.dayflowLime)
+                }
+
+                Spacer()
+
+                ShareLink(item: exportText) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 14, weight: .black))
+                        .foregroundStyle(Color.dayflowBlack)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(Color.dayflowLime))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Экспорт зарплаты")
+            }
+
+            HStack(spacing: 9) {
+                PayrollMetricCell(title: "Оплата", value: "\(Int(summary.estimatedPay.rounded())) ₽", accent: Color.dayflowLime)
+                PayrollMetricCell(title: "Часы", value: ShiftWorkdaySummary.hoursText(summary.totalMinutes), accent: Color.dayflowPaper.opacity(0.36))
+                PayrollMetricCell(title: "Смены", value: "\(summary.workedDays)", accent: Color.dayflowSky.opacity(0.75))
+            }
+
+            HStack(spacing: 9) {
+                PayrollMetricCell(title: "Сверх", value: ShiftWorkdaySummary.hoursText(summary.overtimeMinutes), accent: summary.overtimeMinutes > 0 ? Color.dayflowRose : Color.dayflowPaper.opacity(0.22))
+                PayrollMetricCell(title: "Конфл.", value: "\(summary.conflicts.count)", accent: summary.conflicts.isEmpty ? Color.dayflowPaper.opacity(0.22) : Color.dayflowRose)
+            }
+
+            if let selectedSummary {
+                HStack(spacing: 12) {
+                    Text(selectedSummary.shift.statsShortTitle)
+                        .font(.dfDisplaySmall(17))
+                        .foregroundStyle(selectedSummary.shift == .night ? Color.dayflowPaper : Color.dayflowBlack)
+                        .frame(width: 46, height: 46)
+                        .background(Circle().fill(selectedSummary.shift.statsColor))
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(selectedSummary.shift.title)
+                            .font(.dfDisplaySmall(18))
+                            .foregroundStyle(Color.dayflowPaper)
+                            .lineLimit(1)
+
+                        Text("\(selectedSummary.startTimeText)-\(selectedSummary.endTimeText) · \(selectedSummary.totalHoursText)")
+                            .font(.dfBodyBold(11))
+                            .foregroundStyle(Color.dayflowMist)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    Text(selectedSummary.payText)
+                        .font(.dfDisplaySmall(18))
+                        .foregroundStyle(Color.dayflowLime)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+                .padding(14)
+                .background(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(Color.dayflowPanel.opacity(0.76))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(Color.dayflowPaper.opacity(0.09), lineWidth: 1)
+                )
+            }
+
+            if !summary.conflicts.isEmpty {
+                HStack(spacing: 9) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 13, weight: .black))
+                        .foregroundStyle(Color.dayflowRose)
+
+                    Text(conflictText)
+                        .font(.dfBodyBold(12))
+                        .foregroundStyle(Color.dayflowMist)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(13)
+                .background(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(Color.dayflowRose.opacity(0.12))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(Color.dayflowRose.opacity(0.22), lineWidth: 1)
+                )
+            }
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Color.dayflowPanel.opacity(0.72))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1)
+        )
+    }
+
+    private var conflictText: String {
+        summary.conflicts.prefix(2).map { "\($0.activityTimeText) \($0.activityTitle)" }.joined(separator: " · ")
+    }
+}
+
+private struct PayrollMetricCell: View {
+    let title: String
+    let value: String
+    let accent: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title)
+                .font(.dfBodyBold(10))
+                .foregroundStyle(Color.dayflowMist)
+                .textCase(.uppercase)
+
+            Text(value)
+                .font(.dfDisplaySmall(17))
+                .foregroundStyle(Color.dayflowPaper)
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(13)
+        .background(
+            RoundedRectangle(cornerRadius: 21, style: .continuous)
+                .fill(Color.dayflowBlack.opacity(0.36))
+        )
+        .overlay(alignment: .topTrailing) {
+            Circle()
+                .fill(accent)
+                .frame(width: 10, height: 10)
+                .padding(11)
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 21, style: .continuous)
+                .stroke(Color.dayflowPaper.opacity(0.08), lineWidth: 1)
         )
     }
 }
