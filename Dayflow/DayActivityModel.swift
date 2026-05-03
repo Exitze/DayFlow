@@ -501,6 +501,176 @@ public enum DayActivityValidationError: Error, Equatable {
     case activityNotFound
 }
 
+public struct DayflowQuickActivityTemplate: Equatable, Identifiable {
+    public var id: String
+    public var title: String
+    public var timeText: String
+    public var detail: String
+    public var category: DayActivityCategory
+    public var icon: String
+    public var accent: ActivityAccent
+    public var aliases: [String]
+
+    public var newActivity: NewDayActivity {
+        NewDayActivity(
+            title: title,
+            timeText: timeText,
+            detail: detail,
+            category: category,
+            icon: icon,
+            accent: accent
+        )
+    }
+}
+
+public enum DayflowQuickActivityCatalog {
+    public static let templates: [DayflowQuickActivityTemplate] = [
+        DayflowQuickActivityTemplate(
+            id: "run",
+            title: "Бег",
+            timeText: "7:00",
+            detail: "Парк или дорожка",
+            category: .body,
+            icon: "figure.run",
+            accent: .sky,
+            aliases: ["бег", "пробежка", "run", "running"]
+        ),
+        DayflowQuickActivityTemplate(
+            id: "gym",
+            title: "Зал",
+            timeText: "20:00",
+            detail: "Силовая тренировка",
+            category: .body,
+            icon: "dumbbell.fill",
+            accent: .lime,
+            aliases: ["зал", "тренировка", "качалка", "gym"]
+        ),
+        DayflowQuickActivityTemplate(
+            id: "water",
+            title: "Вода",
+            timeText: "10:00",
+            detail: "Стакан воды",
+            category: .body,
+            icon: "drop.fill",
+            accent: .sky,
+            aliases: ["вода", "water", "пить воду"]
+        ),
+        DayflowQuickActivityTemplate(
+            id: "sleep",
+            title: "Сон",
+            timeText: "23:00",
+            detail: "Лечь без телефона",
+            category: .personal,
+            icon: "bed.double.fill",
+            accent: .rose,
+            aliases: ["сон", "спать", "sleep"]
+        ),
+        DayflowQuickActivityTemplate(
+            id: "work",
+            title: "Работа",
+            timeText: "9:00",
+            detail: "Главный рабочий блок",
+            category: .personal,
+            icon: "briefcase.fill",
+            accent: .lime,
+            aliases: ["работа", "смена", "work"]
+        ),
+        DayflowQuickActivityTemplate(
+            id: "meditation",
+            title: "Медитация",
+            timeText: "22:00",
+            detail: "15 минут тишины",
+            category: .personal,
+            icon: "moon.fill",
+            accent: .rose,
+            aliases: ["медитация", "медитацию", "meditation", "дыхание"]
+        )
+    ]
+
+    public static func template(matching text: String) -> DayflowQuickActivityTemplate? {
+        let normalizedText = normalized(text)
+        return templates.first { template in
+            template.aliases.contains { alias in
+                normalizedText == normalized(alias)
+            }
+        }
+    }
+
+    private static func normalized(_ text: String) -> String {
+        text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "ё", with: "е")
+    }
+}
+
+public enum DayflowQuickCaptureParser {
+    public static func parse(_ text: String, fallbackTimeText: String) throws -> NewDayActivity {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else {
+            throw DayActivityValidationError.blankTitle
+        }
+
+        let timeMatch = extractTime(from: trimmedText)
+        let titleText = timeMatch.titleText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let template = DayflowQuickActivityCatalog.template(matching: titleText)
+        let rawTitle = template?.title ?? titleText
+        let title = titleCased(rawTitle)
+        let timeText = timeMatch.timeText ?? template?.timeText ?? fallbackTimeText
+
+        guard DayActivity.parseTimeText(timeText) != nil else {
+            throw DayActivityValidationError.invalidTime
+        }
+
+        return NewDayActivity(
+            title: title,
+            timeText: timeText,
+            detail: template?.detail ?? "Быстрый ввод",
+            category: template?.category ?? .personal,
+            icon: template?.icon ?? "checkmark.circle.fill",
+            accent: template?.accent ?? .lime
+        )
+    }
+
+    private static func extractTime(from text: String) -> (titleText: String, timeText: String?) {
+        let pattern = #"([01]?\d|2[0-3])[:.]([0-5]\d)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let fullRange = Range(match.range(at: 0), in: text),
+              let hourRange = Range(match.range(at: 1), in: text),
+              let minuteRange = Range(match.range(at: 2), in: text) else {
+            return (text, nil)
+        }
+
+        let hours = Int(text[hourRange]) ?? 0
+        let minutes = String(text[minuteRange])
+        var titleText = text
+        titleText.removeSubrange(fullRange)
+        titleText = titleText.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
+
+        return (titleText, "\(hours):\(minutes)")
+    }
+
+    private static func titleCased(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = trimmed.first else {
+            return trimmed
+        }
+
+        return first.uppercased() + trimmed.dropFirst()
+    }
+}
+
+public enum DayflowDeepLink {
+    public static let scheme = "dayflow"
+    public static let quickAddHost = "quick-add"
+    public static let quickAddURL = URL(string: "\(scheme)://\(quickAddHost)")!
+
+    public static func isQuickAdd(_ url: URL) -> Bool {
+        url.scheme == scheme && url.host == quickAddHost
+    }
+}
+
 public struct NewDayActivity: Equatable {
     public var title: String
     public var timeText: String

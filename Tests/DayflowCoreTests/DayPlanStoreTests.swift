@@ -2,6 +2,69 @@ import XCTest
 @testable import DayflowCore
 
 final class DayPlanStoreTests: XCTestCase {
+    func testQuickCaptureParsesKnownGymActivityWithExplicitTime() throws {
+        let activity = try DayflowQuickCaptureParser.parse("зал 20:00", fallbackTimeText: "12:00")
+
+        XCTAssertEqual(activity.title, "Зал")
+        XCTAssertEqual(activity.timeText, "20:00")
+        XCTAssertEqual(activity.detail, "Силовая тренировка")
+        XCTAssertEqual(activity.category, .body)
+        XCTAssertEqual(activity.icon, "dumbbell.fill")
+        XCTAssertEqual(activity.accent, .lime)
+    }
+
+    func testQuickCaptureUsesTemplateDefaultTimeWhenTimeIsMissing() throws {
+        let activity = try DayflowQuickCaptureParser.parse("бег", fallbackTimeText: "12:00")
+
+        XCTAssertEqual(activity.title, "Бег")
+        XCTAssertEqual(activity.timeText, "7:00")
+        XCTAssertEqual(activity.detail, "Парк или дорожка")
+        XCTAssertEqual(activity.category, .body)
+        XCTAssertEqual(activity.icon, "figure.run")
+    }
+
+    func testQuickCaptureParsesUnknownActivityAsPersonalTask() throws {
+        let activity = try DayflowQuickCaptureParser.parse("созвон 14.30", fallbackTimeText: "12:00")
+
+        XCTAssertEqual(activity.title, "Созвон")
+        XCTAssertEqual(activity.timeText, "14:30")
+        XCTAssertEqual(activity.detail, "Быстрый ввод")
+        XCTAssertEqual(activity.category, .personal)
+        XCTAssertEqual(activity.icon, "checkmark.circle.fill")
+    }
+
+    func testRepeatActivitiesCopiesPreviousDayAndResetsCompletion() throws {
+        let today = date(year: 2026, month: 5, day: 3)
+        let yesterday = addingDays(-1, to: today)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { today })
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky), on: yesterday)
+        try store.add(NewDayActivity(title: "Зал", timeText: "20:00", detail: "Силовая", category: .body, icon: "dumbbell.fill", accent: .lime), on: yesterday)
+        let yesterdayActivityID = try XCTUnwrap(store.activities(on: yesterday).first?.id)
+        try store.setCompleted(yesterdayActivityID, true)
+
+        let copiedCount = try store.repeatActivities(from: yesterday, to: today)
+
+        let todayActivities = store.activities(on: today)
+        XCTAssertEqual(copiedCount, 2)
+        XCTAssertEqual(todayActivities.map(\.title), ["Бег", "Зал"])
+        XCTAssertEqual(todayActivities.map(\.isCompleted), [false, false])
+        XCTAssertEqual(Set(todayActivities.map(\.dayID)), [DayActivity.dayID(for: today, calendar: testCalendar)])
+    }
+
+    func testRepeatActivitiesSkipsExactDuplicatesOnTargetDay() throws {
+        let today = date(year: 2026, month: 5, day: 3)
+        let yesterday = addingDays(-1, to: today)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), calendar: testCalendar, todayProvider: { today })
+        let run = NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky)
+        try store.add(run, on: yesterday)
+        try store.add(run, on: today)
+
+        let copiedCount = try store.repeatActivities(from: yesterday, to: today)
+
+        XCTAssertEqual(copiedCount, 0)
+        XCTAssertEqual(store.activities(on: today).map(\.title), ["Бег"])
+    }
+
     func testUserDefaultsStorageMigratesLegacyDataToSharedStorage() throws {
         let legacyDefaults = makeIsolatedDefaults()
         let sharedDefaults = makeIsolatedDefaults()

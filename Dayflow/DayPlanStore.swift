@@ -309,6 +309,52 @@ public final class DayPlanStore: ObservableObject {
         activities = nextActivities
     }
 
+    @discardableResult
+    public func repeatActivities(from sourceDate: Date, to targetDate: Date) throws -> Int {
+        let sourceDayID = dayID(for: sourceDate)
+        let targetDayID = dayID(for: targetDate)
+        guard sourceDayID != targetDayID else {
+            return 0
+        }
+
+        let sourceActivities = activities(on: sourceDate)
+        guard !sourceActivities.isEmpty else {
+            return 0
+        }
+
+        var existingKeys = Set(activities(on: targetDate).map(Self.repeatDuplicateKey))
+        var copiedActivities: [DayActivity] = []
+
+        for sourceActivity in sourceActivities {
+            let key = Self.repeatDuplicateKey(sourceActivity)
+            guard existingKeys.insert(key).inserted else {
+                continue
+            }
+
+            copiedActivities.append(
+                DayActivity(
+                    title: sourceActivity.title,
+                    timeMinutes: sourceActivity.timeMinutes,
+                    detail: sourceActivity.detail,
+                    category: sourceActivity.category,
+                    icon: sourceActivity.icon,
+                    accent: sourceActivity.accent,
+                    isCompleted: false,
+                    dayID: targetDayID
+                )
+            )
+        }
+
+        guard !copiedActivities.isEmpty else {
+            return 0
+        }
+
+        let nextActivities = DayActivity.sorted(activities + copiedActivities)
+        try storage.saveActivities(nextActivities)
+        activities = nextActivities
+        return copiedActivities.count
+    }
+
     public func applyOnboarding(_ plan: DayflowOnboardingPlan, on date: Date) throws {
         for activity in DayflowOnboardingBuilder.makeActivities(from: plan) {
             try add(activity, on: date)
@@ -424,5 +470,9 @@ public final class DayPlanStore: ObservableObject {
 
     private func dayID(for date: Date) -> String {
         DayActivity.dayID(for: date, calendar: calendar)
+    }
+
+    private static func repeatDuplicateKey(_ activity: DayActivity) -> String {
+        "\(activity.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())|\(activity.timeMinutes)"
     }
 }

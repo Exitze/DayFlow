@@ -75,9 +75,13 @@ struct DayflowCalendarView: View {
             syncNote()
         }
         .sheet(isPresented: $isShowingAddActivity) {
-            NewActivitySheet { newActivity in
-                try store.add(newActivity, on: selectedDate)
-            }
+            NewActivitySheet(
+                targetDate: selectedDate,
+                onSave: { newActivity in
+                    try store.add(newActivity, on: selectedDate)
+                },
+                onRepeatPreviousDay: repeatPreviousDayIntoSelection
+            )
         }
         .sheet(isPresented: $isShowingScheduleBuilder) {
             ScheduleBuilderSheet(
@@ -114,6 +118,11 @@ struct DayflowCalendarView: View {
         } catch {
             errorText = "Активность не удалилась."
         }
+    }
+
+    private func repeatPreviousDayIntoSelection() throws -> Int {
+        let previousDate = calendar.date(byAdding: .day, value: -1, to: selectedDate) ?? selectedDate
+        return try store.repeatActivities(from: previousDate, to: selectedDate)
     }
 
     private func saveNote() {

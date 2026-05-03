@@ -169,10 +169,17 @@ struct DayflowHomeView: View {
                 WidgetCenter.shared.reloadAllTimelines()
                 notificationController.rescheduleIfNeeded(store: store)
             }
+            .onOpenURL { url in
+                handleDeepLink(url)
+            }
             .sheet(isPresented: $isShowingAddActivity) {
-                NewActivitySheet { newActivity in
-                    try store.add(newActivity, on: currentDate)
-                }
+                NewActivitySheet(
+                    targetDate: currentDate,
+                    onSave: { newActivity in
+                        try store.add(newActivity, on: currentDate)
+                    },
+                    onRepeatPreviousDay: repeatPreviousDayIntoToday
+                )
             }
             .sheet(isPresented: $isShowingNotificationSettings) {
                 DayflowNotificationSettingsSheet(store: store, controller: notificationController)
@@ -220,6 +227,21 @@ struct DayflowHomeView: View {
             storeErrorMessage = "Удаление не записалось. Попробуй еще раз."
             isShowingStoreError = true
         }
+    }
+
+    private func repeatPreviousDayIntoToday() throws -> Int {
+        let previousDate = Calendar.current.date(byAdding: .day, value: -1, to: currentDate) ?? currentDate
+        return try store.repeatActivities(from: previousDate, to: currentDate)
+    }
+
+    private func handleDeepLink(_ url: URL) {
+        guard DayflowDeepLink.isQuickAdd(url) else {
+            return
+        }
+
+        selectedTab = .home
+        refreshCurrentDate()
+        isShowingAddActivity = true
     }
 
     private func refreshCurrentDate(using candidateDate: Date = Date()) {
@@ -3695,31 +3717,33 @@ private struct SettingsDataActionRow: View {
 }
 
 struct NewActivitySheet: View {
+    let targetDate: Date
     let onSave: (NewDayActivity) throws -> Void
+    let onRepeatPreviousDay: () throws -> Int
 
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var isQuickInputFocused: Bool
+    @State private var quickText = ""
     @State private var title = ""
     @State private var detail = ""
     @State private var time = Date()
     @State private var category: DayActivityCategory = .body
     @State private var errorText: String?
+    @State private var hasManualCategory = false
 
     var body: some View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 18) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Новое дело")
-                            .font(.dfDisplay(30))
-                            .foregroundStyle(Color.dayflowPaper)
+                VStack(alignment: .leading, spacing: 16) {
+                    sheetHeader
 
-                        Text(selectedTimeText)
-                            .font(.dfDisplaySmall(18))
-                            .foregroundStyle(Color.dayflowLime)
-                    }
-                    .padding(.top, 10)
+                    quickInputBlock
 
-                    SheetTextField(title: "Название", placeholder: "Бег, зал, встреча", text: $title)
+                    quickTemplateRail
+
+                    repeatYesterdayButton
+
+                    SheetTextField(title: "Название", placeholder: "если нужно поправить", text: $title)
                     SheetTextField(title: "Детали", placeholder: "Парк, 40 мин", text: $detail)
 
                     VStack(alignment: .leading, spacing: 10) {
@@ -3762,6 +3786,7 @@ struct NewActivitySheet: View {
                             ForEach(DayActivityCategory.creatableCases) { option in
                                 Button {
                                     category = option
+                                    hasManualCategory = true
                                 } label: {
                                     HStack(spacing: 8) {
                                         Image(systemName: option.defaultIcon)
@@ -3787,11 +3812,12 @@ struct NewActivitySheet: View {
                         Text(errorText)
                             .font(.dfBodyBold(13))
                             .foregroundStyle(Color.dayflowRose)
+                            .lineSpacing(3)
                     }
 
                     Button(action: save) {
                         HStack {
-                            Text("Сохранить")
+                            Text("Добавить")
                                 .font(.dfDisplaySmall(18))
 
                             Spacer()
@@ -3805,8 +3831,8 @@ struct NewActivitySheet: View {
                         .background(Capsule().fill(Color.dayflowLime))
                     }
                     .buttonStyle(.plain)
-                    .disabled(trimmedTitle.isEmpty)
-                    .opacity(trimmedTitle.isEmpty ? 0.42 : 1)
+                    .disabled(!canSave)
+                    .opacity(canSave ? 1 : 0.42)
                     .padding(.top, 4)
                 }
                 .padding(18)
@@ -3824,10 +3850,156 @@ struct NewActivitySheet: View {
         }
         .preferredColorScheme(.dark)
         .dismissKeyboardOnTapOutside()
+        .onAppear {
+            isQuickInputFocused = true
+        }
+    }
+
+    private var sheetHeader: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Быстрый ввод")
+                .font(.dfDisplay(30))
+                .foregroundStyle(Color.dayflowPaper)
+
+            HStack(spacing: 8) {
+                Text(targetDateText)
+                    .font(.dfDisplaySmall(18))
+                    .foregroundStyle(Color.dayflowLime)
+
+                Text(selectedTimeText)
+                    .font(.dfBodyBold(13))
+                    .foregroundStyle(Color.dayflowMist)
+            }
+        }
+        .padding(.top, 10)
+    }
+
+    private var quickInputBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Быстро")
+                .font(.dfBodyBold(12))
+                .foregroundStyle(Color.dayflowMist)
+                .textCase(.uppercase)
+
+            HStack(spacing: 12) {
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 16, weight: .black))
+                    .foregroundStyle(Color.dayflowBlack)
+                    .frame(width: 38, height: 38)
+                    .background(Circle().fill(Color.dayflowLime))
+
+                TextField("зал 20:00", text: $quickText)
+                    .font(.dfDisplaySmall(20))
+                    .foregroundStyle(Color.dayflowPaper)
+                    .textInputAutocapitalization(.sentences)
+                    .submitLabel(.done)
+                    .focused($isQuickInputFocused)
+                    .onSubmit(save)
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 64)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color.dayflowPanel.opacity(0.88))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(Color.dayflowLime.opacity(isQuickInputFocused ? 0.38 : 0.12), lineWidth: 1)
+            )
+
+            if let previewActivity {
+                HStack(spacing: 8) {
+                    Image(systemName: previewActivity.icon)
+                        .font(.system(size: 12, weight: .black))
+                        .foregroundStyle(previewActivity.accent.color)
+
+                    Text("\(previewActivity.title) · \(previewActivity.timeText)")
+                        .font(.dfBodyBold(12))
+                        .foregroundStyle(Color.dayflowMist)
+                        .lineLimit(1)
+                }
+            }
+        }
+    }
+
+    private var quickTemplateRail: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(DayflowQuickActivityCatalog.templates) { template in
+                    Button {
+                        apply(template)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: template.icon)
+                                .font(.system(size: 13, weight: .black))
+
+                            Text(template.title)
+                                .font(.dfBodyBold(13))
+                        }
+                        .foregroundStyle(Color.dayflowPaper)
+                        .padding(.horizontal, 13)
+                        .frame(height: 42)
+                        .background(Capsule().fill(Color.dayflowPanel.opacity(0.82)))
+                        .overlay(Capsule().stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    private var repeatYesterdayButton: some View {
+        Button(action: repeatPreviousDay) {
+            HStack(spacing: 12) {
+                Image(systemName: "arrow.uturn.backward.circle.fill")
+                    .font(.system(size: 19, weight: .black))
+                    .foregroundStyle(Color.dayflowLime)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Повторить вчера")
+                        .font(.dfDisplaySmall(17))
+                        .foregroundStyle(Color.dayflowPaper)
+
+                    Text("скопировать дела на \(targetDateShortText)")
+                        .font(.dfBody(12))
+                        .foregroundStyle(Color.dayflowMist)
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 66)
+            .background(
+                RoundedRectangle(cornerRadius: 23, style: .continuous)
+                    .fill(Color.dayflowPanel.opacity(0.62))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 23, style: .continuous)
+                    .stroke(Color.dayflowPaper.opacity(0.09), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private var trimmedTitle: String {
         title.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var trimmedQuickText: String {
+        quickText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSave: Bool {
+        !trimmedQuickText.isEmpty || !trimmedTitle.isEmpty
+    }
+
+    private var previewActivity: NewDayActivity? {
+        guard !trimmedQuickText.isEmpty else {
+            return nil
+        }
+
+        return try? DayflowQuickCaptureParser.parse(trimmedQuickText, fallbackTimeText: selectedTimeText)
     }
 
     private var selectedTimeText: String {
@@ -3835,18 +4007,23 @@ struct NewActivitySheet: View {
         return String(format: "%d:%02d", components.hour ?? 0, components.minute ?? 0)
     }
 
+    private var targetDateText: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "d MMMM, EEEE"
+        return formatter.string(from: targetDate).capitalized
+    }
+
+    private var targetDateShortText: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "d MMMM"
+        return formatter.string(from: targetDate)
+    }
+
     private func save() {
         do {
-            try onSave(
-                NewDayActivity(
-                    title: title,
-                    timeText: selectedTimeText,
-                    detail: detail,
-                    category: category,
-                    icon: category.defaultIcon,
-                    accent: category.defaultAccent
-                )
-            )
+            try onSave(makeActivity())
             dismiss()
         } catch DayActivityValidationError.blankTitle {
             errorText = "Добавь название."
@@ -3855,6 +4032,60 @@ struct NewActivitySheet: View {
         } catch {
             errorText = "Не удалось сохранить. Попробуй еще раз."
         }
+    }
+
+    private func makeActivity() throws -> NewDayActivity {
+        if !trimmedQuickText.isEmpty {
+            let parsed = try DayflowQuickCaptureParser.parse(trimmedQuickText, fallbackTimeText: selectedTimeText)
+            let selectedCategory = hasManualCategory ? category : parsed.category
+            return NewDayActivity(
+                title: trimmedTitle.isEmpty ? parsed.title : title,
+                timeText: parsed.timeText,
+                detail: detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? parsed.detail : detail,
+                category: selectedCategory,
+                icon: hasManualCategory ? selectedCategory.defaultIcon : parsed.icon,
+                accent: hasManualCategory ? selectedCategory.defaultAccent : parsed.accent
+            )
+        }
+
+        return NewDayActivity(
+            title: title,
+            timeText: selectedTimeText,
+            detail: detail,
+            category: category,
+            icon: category.defaultIcon,
+            accent: category.defaultAccent
+        )
+    }
+
+    private func apply(_ template: DayflowQuickActivityTemplate) {
+        quickText = "\(template.title.lowercased()) \(template.timeText)"
+        title = template.title
+        detail = template.detail
+        category = template.category
+        hasManualCategory = false
+        if let minutes = DayActivity.parseTimeText(template.timeText) {
+            time = date(fromMinutes: minutes)
+        }
+    }
+
+    private func repeatPreviousDay() {
+        do {
+            let count = try onRepeatPreviousDay()
+            guard count > 0 else {
+                errorText = "Вчера пусто или эти дела уже добавлены."
+                return
+            }
+
+            dismiss()
+        } catch {
+            errorText = "Не удалось повторить вчера. Попробуй еще раз."
+        }
+    }
+
+    private func date(fromMinutes minutes: Int) -> Date {
+        let start = Calendar.current.startOfDay(for: targetDate)
+        return Calendar.current.date(byAdding: .minute, value: minutes, to: start) ?? targetDate
     }
 }
 

@@ -96,7 +96,7 @@ private struct SmallPlanWidget: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            WidgetHeader(title: "план дня", value: "\(snapshot.completedCount)/\(snapshot.totalCount)")
+            WidgetHeader(title: "план дня", value: "\(snapshot.completedCount)/\(snapshot.totalCount)", showsQuickAdd: true)
 
             ZStack {
                 ArcField()
@@ -122,7 +122,7 @@ private struct MediumPlanWidget: View {
     var body: some View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 10) {
-                WidgetHeader(title: "Dayflow", value: "\(snapshot.completedCount)/\(snapshot.totalCount)")
+                WidgetHeader(title: "Dayflow", value: "\(snapshot.completedCount)/\(snapshot.totalCount)", showsQuickAdd: true)
 
                 ProgressOrb(percent: snapshot.progressPercent, size: 88, lineWidth: 9)
 
@@ -167,7 +167,10 @@ private struct LargePlanWidget: View {
 
                 Spacer()
 
-                ShiftBadge(shift: snapshot.effectiveShift, scheduleName: snapshot.scheduleName)
+                HStack(spacing: 8) {
+                    QuickAddWidgetButton(size: 26)
+                    ShiftBadge(shift: snapshot.effectiveShift, scheduleName: snapshot.scheduleName)
+                }
             }
 
             WeeklyPulse(days: snapshot.weekDays)
@@ -275,6 +278,7 @@ private struct AccessoryShiftWidget: View {
 private struct WidgetHeader: View {
     let title: String
     let value: String
+    var showsQuickAdd = false
 
     var body: some View {
         HStack(alignment: .top) {
@@ -287,6 +291,23 @@ private struct WidgetHeader: View {
                 .foregroundStyle(Color.dayflowWidgetLime)
                 .lineLimit(1)
                 .minimumScaleFactor(0.68)
+            if showsQuickAdd {
+                QuickAddWidgetButton(size: 22)
+            }
+        }
+    }
+}
+
+private struct QuickAddWidgetButton: View {
+    let size: CGFloat
+
+    var body: some View {
+        Link(destination: DayflowDeepLink.quickAddURL) {
+            Image(systemName: "plus")
+                .font(.system(size: max(10, size * 0.48), weight: .black))
+                .foregroundStyle(Color.dayflowWidgetBlack)
+                .frame(width: size, height: size)
+                .background(Color.dayflowWidgetLime, in: Circle())
         }
     }
 }
