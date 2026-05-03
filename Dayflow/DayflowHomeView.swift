@@ -325,6 +325,7 @@ private struct DayflowOnboardingView: View {
                         action: primaryAction
                     )
                     .frame(width: contentWidth)
+                    .padding(.top, 12)
                     .padding(.bottom, 18)
                 }
                 .frame(maxWidth: .infinity)
@@ -455,15 +456,21 @@ private struct OnboardingTopBar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Button(action: onBack) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .black))
-                    .foregroundStyle(canGoBack ? Color.dayflowPaper : Color.dayflowMist.opacity(0.35))
-                    .frame(width: 40, height: 40)
-                    .background(Circle().fill(Color.dayflowPanel.opacity(0.84)))
+            Group {
+                if canGoBack {
+                    Button(action: onBack) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 14, weight: .black))
+                            .foregroundStyle(Color.dayflowPaper)
+                            .frame(width: 40, height: 40)
+                            .background(Circle().fill(Color.dayflowPanel.opacity(0.84)))
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Color.clear
+                        .frame(width: 40, height: 40)
+                }
             }
-            .buttonStyle(.plain)
-            .disabled(!canGoBack)
 
             OnboardingProgressDots(step: step)
 
@@ -498,30 +505,32 @@ private struct OnboardingIntroPage: View {
     let today: Date
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            Spacer(minLength: 20)
+        VStack(alignment: .leading, spacing: 18) {
+            Spacer(minLength: 12)
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 8) {
                 Text("Dayflow")
-                    .font(.dfDisplay(54))
+                    .font(.dfDisplay(51))
                     .foregroundStyle(Color.dayflowPaper)
                     .minimumScaleFactor(0.72)
 
                 Text("План дня, смены и личный ритм в одном месте.")
-                    .font(.dfDisplaySmall(25))
+                    .font(.dfDisplaySmall(24))
                     .foregroundStyle(Color.dayflowLime)
                     .lineLimit(3)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             OnboardingHeroPanel(today: today)
 
-            VStack(spacing: 10) {
+            VStack(spacing: 9) {
                 OnboardingValueRow(icon: "checkmark.circle.fill", title: "Сегодняшние дела", text: "Бег, зал, работа, фокус и личные задачи без лишнего шума.")
                 OnboardingValueRow(icon: "calendar.badge.clock", title: "Смены и восстановление", text: "График влияет на день, Dayflow учитывает это с самого старта.")
                 OnboardingValueRow(icon: "bell.badge.fill", title: "Виджеты и напоминания", text: "План виден на экране iPhone и возвращает в нужный момент.")
             }
+            .frame(maxWidth: .infinity)
 
-            Spacer(minLength: 20)
+            Spacer(minLength: 8)
         }
     }
 }
@@ -563,7 +572,7 @@ private struct OnboardingHeroPanel: View {
             }
             .padding(22)
         }
-        .frame(height: 210)
+        .frame(height: 196)
     }
 
     private var dateText: String {
@@ -597,7 +606,7 @@ private struct OnboardingValueRow: View {
             Image(systemName: icon)
                 .font(.system(size: 17, weight: .black))
                 .foregroundStyle(Color.dayflowBlack)
-                .frame(width: 42, height: 42)
+                .frame(width: 40, height: 40)
                 .background(Circle().fill(Color.dayflowLime))
 
             VStack(alignment: .leading, spacing: 3) {
@@ -610,8 +619,11 @@ private struct OnboardingValueRow: View {
                     .foregroundStyle(Color.dayflowMist)
                     .lineLimit(2)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(14)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
+        .frame(maxWidth: .infinity, minHeight: 72, alignment: .center)
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(Color.dayflowPanel.opacity(0.68))
@@ -643,6 +655,7 @@ private struct OnboardingScenarioPage: View {
                     )
                 }
             }
+            .frame(maxWidth: .infinity)
 
             Spacer(minLength: 12)
         }
@@ -672,6 +685,7 @@ private struct OnboardingShiftPage: View {
                     )
                 }
             }
+            .frame(maxWidth: .infinity)
 
             Spacer(minLength: 12)
         }
@@ -700,6 +714,7 @@ private struct OnboardingActivityTemplatePage: View {
                     )
                 }
             }
+            .frame(maxWidth: .infinity)
 
             Spacer(minLength: 12)
         }
@@ -736,6 +751,7 @@ private struct OnboardingPageTitle: View {
                 .foregroundStyle(Color.dayflowMist)
                 .lineLimit(3)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -757,12 +773,15 @@ private struct OnboardingScenarioCard: View {
                     Text(scenario.title)
                         .font(.dfDisplaySmall(19))
                         .foregroundStyle(Color.dayflowPaper)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.76)
 
                     Text(scenario.subtitle)
                         .font(.dfBody(12))
                         .foregroundStyle(Color.dayflowMist)
                         .lineLimit(2)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Spacer(minLength: 8)
 
@@ -770,7 +789,9 @@ private struct OnboardingScenarioCard: View {
                     .font(.system(size: 18, weight: .black))
                     .foregroundStyle(isSelected ? Color.dayflowLime : Color.dayflowMist)
             }
-            .padding(14)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, minHeight: 78, alignment: .center)
             .background(
                 RoundedRectangle(cornerRadius: 26, style: .continuous)
                     .fill(Color.dayflowPanel.opacity(isSelected ? 0.92 : 0.68))
@@ -792,8 +813,8 @@ private struct OnboardingShiftOptionCard: View {
     var body: some View {
         Button(action: action) {
             cardContent
-            .padding(14)
-            .frame(maxWidth: .infinity, minHeight: 142, alignment: .topLeading)
+            .padding(16)
+            .frame(maxWidth: .infinity, minHeight: 146, alignment: .center)
             .background(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .fill(backgroundColor)
@@ -819,6 +840,7 @@ private struct OnboardingShiftOptionCard: View {
 
             cycleDots
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
     private var titleRow: some View {
@@ -827,6 +849,7 @@ private struct OnboardingShiftOptionCard: View {
                 .font(.dfDisplaySmall(20))
                 .foregroundStyle(titleColor)
                 .lineLimit(2)
+                .minimumScaleFactor(0.78)
 
             Spacer()
 
@@ -901,13 +924,14 @@ private struct OnboardingTemplateCard: View {
                     .font(.dfDisplaySmall(20))
                     .foregroundStyle(isSelected ? Color.dayflowBlack : Color.dayflowPaper)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.78)
 
                 Text(template.timeText)
                     .font(.dfBodyBold(13))
                     .foregroundStyle(isSelected ? Color.dayflowBlack.opacity(0.64) : Color.dayflowLime)
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, minHeight: 136, alignment: .topLeading)
+            .padding(16)
+            .frame(maxWidth: .infinity, minHeight: 140, alignment: .center)
             .background(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .fill(isSelected ? Color.dayflowLime : Color.dayflowPanel.opacity(0.74))
