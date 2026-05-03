@@ -57,6 +57,9 @@ public enum ShiftSchedulePreset: String, Codable, CaseIterable, Equatable, Ident
     case twoTwo
     case twoFive
     case twoDayTwoNight
+    case dayNightRest
+    case fiveTwo
+    case custom
 
     public var id: String { rawValue }
 
@@ -68,6 +71,12 @@ public enum ShiftSchedulePreset: String, Codable, CaseIterable, Equatable, Ident
             return "2/5"
         case .twoDayTwoNight:
             return "2Д/2Н"
+        case .dayNightRest:
+            return "День/Ночь"
+        case .fiveTwo:
+            return "5/2"
+        case .custom:
+            return "Свой"
         }
     }
 
@@ -79,6 +88,12 @@ public enum ShiftSchedulePreset: String, Codable, CaseIterable, Equatable, Ident
             return "2 рабочих, 5 выходных"
         case .twoDayTwoNight:
             return "2 дня, 2 ночи, отсыпной"
+        case .dayNightRest:
+            return "день, ночь, отсыпной, выходной"
+        case .fiveTwo:
+            return "5 рабочих, 2 выходных"
+        case .custom:
+            return "формула пользователя"
         }
     }
 
@@ -90,7 +105,58 @@ public enum ShiftSchedulePreset: String, Codable, CaseIterable, Equatable, Ident
             return [.day, .day, .rest, .rest, .rest, .rest, .rest]
         case .twoDayTwoNight:
             return [.day, .day, .night, .night, .recovery, .rest]
+        case .dayNightRest:
+            return [.day, .night, .recovery, .rest]
+        case .fiveTwo:
+            return [.day, .day, .day, .day, .day, .rest, .rest]
+        case .custom:
+            return []
         }
+    }
+}
+
+public enum ShiftScheduleValidationError: Error, Equatable {
+    case emptyCycle
+}
+
+public struct ShiftScheduleFormula: Codable, Equatable {
+    public var dayCount: Int
+    public var nightCount: Int
+    public var recoveryCount: Int
+    public var restCount: Int
+
+    public init(dayCount: Int, nightCount: Int, recoveryCount: Int, restCount: Int) {
+        self.dayCount = Self.clamped(dayCount)
+        self.nightCount = Self.clamped(nightCount)
+        self.recoveryCount = Self.clamped(recoveryCount)
+        self.restCount = Self.clamped(restCount)
+    }
+
+    public var cycle: [ShiftKind] {
+        Array(repeating: .day, count: dayCount)
+            + Array(repeating: .night, count: nightCount)
+            + Array(repeating: .recovery, count: recoveryCount)
+            + Array(repeating: .rest, count: restCount)
+    }
+
+    public var title: String {
+        let parts = [
+            titlePart(count: dayCount, symbol: "Д"),
+            titlePart(count: nightCount, symbol: "Н"),
+            titlePart(count: recoveryCount, symbol: "О"),
+            titlePart(count: restCount, symbol: "В")
+        ].compactMap { $0 }
+
+        return parts.isEmpty ? "Пустой график" : parts.joined(separator: " · ")
+    }
+
+    private static func clamped(_ value: Int) -> Int {
+        min(max(value, 0), 31)
+    }
+
+    private func titlePart(count: Int, symbol: String) -> String? {
+        guard count > 0 else { return nil }
+        return "\(count)\(symbol)"
     }
 }
 
@@ -128,6 +194,24 @@ public struct ShiftSchedule: Codable, Equatable, Identifiable {
             name: preset.title,
             startDayID: DayActivity.dayID(for: date, calendar: calendar),
             cycle: preset.cycle
+        )
+    }
+
+    public static func makeCustom(
+        formula: ShiftScheduleFormula,
+        starting date: Date,
+        calendar: Calendar = .current
+    ) throws -> ShiftSchedule {
+        let cycle = formula.cycle
+        guard !cycle.isEmpty else {
+            throw ShiftScheduleValidationError.emptyCycle
+        }
+
+        return ShiftSchedule(
+            preset: .custom,
+            name: formula.title,
+            startDayID: DayActivity.dayID(for: date, calendar: calendar),
+            cycle: cycle
         )
     }
 

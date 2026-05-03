@@ -7,6 +7,7 @@ struct DayflowCalendarView: View {
     @State private var selectedDate = Date()
     @State private var noteDraft = ""
     @State private var isShowingAddActivity = false
+    @State private var isShowingScheduleBuilder = false
     @State private var errorText: String?
 
     private let calendar = Calendar.current
@@ -37,7 +38,7 @@ struct DayflowCalendarView: View {
                 ScheduleControlBlock(
                     schedule: store.shiftSchedule,
                     selectedDate: selectedDate,
-                    onSelectPreset: setSchedule,
+                    onOpenBuilder: { isShowingScheduleBuilder = true },
                     onClear: clearSchedule
                 )
 
@@ -77,6 +78,13 @@ struct DayflowCalendarView: View {
             NewActivitySheet { newActivity in
                 try store.add(newActivity, on: selectedDate)
             }
+        }
+        .sheet(isPresented: $isShowingScheduleBuilder) {
+            ScheduleBuilderSheet(
+                startDate: selectedDate,
+                currentSchedule: store.shiftSchedule,
+                onApply: setSchedule
+            )
         }
     }
 
@@ -122,12 +130,13 @@ struct DayflowCalendarView: View {
         errorText = nil
     }
 
-    private func setSchedule(_ preset: ShiftSchedulePreset) {
+    private func setSchedule(_ schedule: ShiftSchedule) throws {
         do {
-            try store.setShiftSchedule(.makePreset(preset, starting: selectedDate, calendar: calendar))
+            try store.setShiftSchedule(schedule)
             errorText = nil
         } catch {
             errorText = "График не сохранился."
+            throw error
         }
     }
 
@@ -534,12 +543,12 @@ private struct CalendarActivityRow: View {
 private struct ScheduleControlBlock: View {
     let schedule: ShiftSchedule?
     let selectedDate: Date
-    let onSelectPreset: (ShiftSchedulePreset) -> Void
+    let onOpenBuilder: () -> Void
     let onClear: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Автографик")
                         .font(.dfDisplaySmall(22))
@@ -565,37 +574,44 @@ private struct ScheduleControlBlock: View {
                 }
             }
 
-            HStack(spacing: 9) {
-                ForEach(ShiftSchedulePreset.allCases) { preset in
-                    let isSelected = schedule?.preset == preset
+            Button(action: onOpenBuilder) {
+                HStack(spacing: 13) {
+                    Image(systemName: "wand.and.stars")
+                        .font(.system(size: 17, weight: .black))
+                        .foregroundStyle(Color.dayflowBlack)
+                        .frame(width: 42, height: 42)
+                        .background(Circle().fill(Color.dayflowLime))
 
-                    Button {
-                        onSelectPreset(preset)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(preset.title)
-                                .font(.dfDisplaySmall(18))
-                                .foregroundStyle(isSelected ? Color.dayflowBlack : Color.dayflowPaper)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(schedule == nil ? "Заполнить график" : "Изменить график")
+                            .font(.dfDisplaySmall(18))
+                            .foregroundStyle(Color.dayflowPaper)
 
-                            Text(preset.subtitle)
-                                .font(.dfBodyBold(10))
-                                .lineLimit(2)
-                                .foregroundStyle(isSelected ? Color.dayflowBlack.opacity(0.62) : Color.dayflowMist)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .padding(.horizontal, 12)
-                        .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                .fill(isSelected ? Color.dayflowLime : Color.dayflowPanel.opacity(0.86))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                .stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1)
-                        )
+                        Text("Быстрые 2/2, день-ночь, 5/2 или своя формула")
+                            .font(.dfBodyBold(11))
+                            .foregroundStyle(Color.dayflowMist)
                     }
-                    .buttonStyle(.plain)
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .black))
+                        .foregroundStyle(Color.dayflowMist)
                 }
+                .padding(14)
+                .background(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(Color.dayflowBlack.opacity(0.28))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+
+            if let schedule {
+                ScheduleCycleStrip(cycle: schedule.cycle)
             }
         }
         .padding(18)
@@ -611,10 +627,10 @@ private struct ScheduleControlBlock: View {
 
     private var statusText: String {
         guard let schedule else {
-            return "Выбери пресет, старт будет от \(dateText)"
+            return "Старт будет от \(dateText)"
         }
 
-        return "\(schedule.name) активен с \(schedule.startDayID)"
+        return "\(schedule.name) · с \(schedule.startDayID)"
     }
 
     private var dateText: String {
@@ -622,6 +638,463 @@ private struct ScheduleControlBlock: View {
         formatter.locale = Locale(identifier: "ru_RU")
         formatter.dateFormat = "d MMM"
         return formatter.string(from: selectedDate)
+    }
+}
+
+private struct ScheduleCycleStrip: View {
+    let cycle: [ShiftKind]
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 7) {
+                ForEach(Array(cycle.prefix(14).enumerated()), id: \.offset) { index, shift in
+                    VStack(spacing: 5) {
+                        Text("\(index + 1)")
+                            .font(.dfBodyBold(10))
+                            .foregroundStyle(Color.dayflowMist)
+
+                        Text(shift.badgeTitle)
+                            .font(.dfDisplaySmall(13))
+                            .foregroundStyle(shift.badgeForeground)
+                            .frame(width: 30, height: 30)
+                            .background(Circle().fill(shift.badgeColor))
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct ScheduleBuilderSheet: View {
+    let startDate: Date
+    let onApply: (ShiftSchedule) throws -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var formula: ShiftScheduleFormula
+    @State private var selectedPreset: ShiftSchedulePreset?
+    @State private var errorText: String?
+
+    private let calendar = Calendar.current
+    private let previewCount = 14
+    private static let quickPresets: [ShiftSchedulePreset] = [.twoTwo, .dayNightRest, .fiveTwo]
+
+    init(
+        startDate: Date,
+        currentSchedule: ShiftSchedule?,
+        onApply: @escaping (ShiftSchedule) throws -> Void
+    ) {
+        self.startDate = startDate
+        self.onApply = onApply
+
+        let selectedPreset = currentSchedule.flatMap { schedule in
+            Self.quickPresets.first { $0 == schedule.preset }
+        } ?? (currentSchedule == nil ? .dayNightRest : nil)
+        let fallbackCycle = (selectedPreset ?? .dayNightRest).cycle
+        let initialCycle: [ShiftKind]
+        if let cycle = currentSchedule?.cycle, !cycle.isEmpty {
+            initialCycle = cycle
+        } else {
+            initialCycle = fallbackCycle
+        }
+
+        _formula = State(initialValue: ShiftScheduleFormula(cycle: initialCycle))
+        _selectedPreset = State(initialValue: selectedPreset)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Заполнить график")
+                            .font(.dfDisplay(30))
+                            .foregroundStyle(Color.dayflowPaper)
+
+                        Text("Старт: \(startDateText)")
+                            .font(.dfDisplaySmall(18))
+                            .foregroundStyle(Color.dayflowLime)
+                    }
+                    .padding(.top, 10)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Быстро")
+                            .font(.dfBodyBold(12))
+                            .foregroundStyle(Color.dayflowMist)
+                            .textCase(.uppercase)
+
+                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                            ForEach(Self.quickPresets) { preset in
+                                ScheduleQuickOptionCard(
+                                    preset: preset,
+                                    isSelected: selectedPreset == preset,
+                                    action: { selectPreset(preset) }
+                                )
+                            }
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Формула цикла")
+                            .font(.dfBodyBold(12))
+                            .foregroundStyle(Color.dayflowMist)
+                            .textCase(.uppercase)
+
+                        VStack(spacing: 10) {
+                            ScheduleCounterRow(
+                                title: "Дни",
+                                subtitle: "рабочая дневная смена",
+                                symbol: "Д",
+                                color: Color.dayflowLime,
+                                value: countBinding(\.dayCount)
+                            )
+
+                            ScheduleCounterRow(
+                                title: "Ночи",
+                                subtitle: "ночная смена",
+                                symbol: "Н",
+                                color: Color.dayflowRose,
+                                value: countBinding(\.nightCount)
+                            )
+
+                            ScheduleCounterRow(
+                                title: "Отсыпные",
+                                subtitle: "восстановление после ночи",
+                                symbol: "О",
+                                color: Color.dayflowPaper,
+                                value: countBinding(\.recoveryCount)
+                            )
+
+                            ScheduleCounterRow(
+                                title: "Выходные",
+                                subtitle: "свободные дни",
+                                symbol: "В",
+                                color: Color.dayflowMist,
+                                value: countBinding(\.restCount)
+                            )
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text("Предпросмотр")
+                                .font(.dfDisplaySmall(22))
+                                .foregroundStyle(Color.dayflowPaper)
+
+                            Spacer()
+
+                            Text(formula.title)
+                                .font(.dfBodyBold(12))
+                                .foregroundStyle(formula.cycle.isEmpty ? Color.dayflowRose : Color.dayflowLime)
+                        }
+
+                        if formula.cycle.isEmpty {
+                            Text("Добавь хотя бы один день, ночь, отсыпной или выходной.")
+                                .font(.dfBody(14))
+                                .foregroundStyle(Color.dayflowMist)
+                                .padding(16)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                        .fill(Color.dayflowPanel.opacity(0.82))
+                                )
+                        } else {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 9) {
+                                    ForEach(previewDays) { day in
+                                        SchedulePreviewChip(day: day)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if let errorText {
+                        Text(errorText)
+                            .font(.dfBodyBold(13))
+                            .foregroundStyle(Color.dayflowRose)
+                    }
+
+                    Button(action: apply) {
+                        HStack {
+                            Text(applyTitle)
+                                .font(.dfDisplaySmall(18))
+
+                            Spacer()
+
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 17, weight: .black))
+                        }
+                        .foregroundStyle(Color.dayflowBlack)
+                        .padding(.horizontal, 18)
+                        .frame(height: 58)
+                        .background(Capsule().fill(Color.dayflowLime))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(formula.cycle.isEmpty)
+                    .opacity(formula.cycle.isEmpty ? 0.42 : 1)
+                    .padding(.top, 4)
+                }
+                .padding(18)
+            }
+            .background(Color.dayflowBlack.ignoresSafeArea())
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                    .font(.dfBodyBold(14))
+                    .foregroundStyle(Color.dayflowMist)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+        .presentationDetents([.large])
+    }
+
+    private var startDateText: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "d MMMM, EEEE"
+        return formatter.string(from: startDate)
+    }
+
+    private var applyTitle: String {
+        if let selectedPreset {
+            return "Применить \(selectedPreset.title)"
+        }
+
+        return "Применить формулу"
+    }
+
+    private var previewDays: [SchedulePreviewDay] {
+        let cycle = formula.cycle
+        guard !cycle.isEmpty else { return [] }
+
+        return (0..<previewCount).map { offset in
+            let date = calendar.date(byAdding: .day, value: offset, to: startDate) ?? startDate
+            return SchedulePreviewDay(
+                id: offset,
+                dayText: String(calendar.component(.day, from: date)),
+                weekdayText: weekdayText(for: date),
+                shift: cycle[offset % cycle.count]
+            )
+        }
+    }
+
+    private func countBinding(_ keyPath: WritableKeyPath<ShiftScheduleFormula, Int>) -> Binding<Int> {
+        Binding(
+            get: { formula[keyPath: keyPath] },
+            set: { newValue in
+                formula[keyPath: keyPath] = min(max(newValue, 0), 31)
+                selectedPreset = nil
+                errorText = nil
+            }
+        )
+    }
+
+    private func selectPreset(_ preset: ShiftSchedulePreset) {
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+            selectedPreset = preset
+            formula = ShiftScheduleFormula(cycle: preset.cycle)
+            errorText = nil
+        }
+    }
+
+    private func apply() {
+        do {
+            let schedule: ShiftSchedule
+            if let selectedPreset {
+                schedule = .makePreset(selectedPreset, starting: startDate, calendar: calendar)
+            } else {
+                schedule = try .makeCustom(formula: formula, starting: startDate, calendar: calendar)
+            }
+
+            try onApply(schedule)
+            dismiss()
+        } catch ShiftScheduleValidationError.emptyCycle {
+            errorText = "Формула пустая."
+        } catch {
+            errorText = "График не сохранился."
+        }
+    }
+
+    private func weekdayText(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "EE"
+        return formatter.string(from: date).uppercased()
+    }
+}
+
+private struct ScheduleQuickOptionCard: View {
+    let preset: ShiftSchedulePreset
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text(preset.title)
+                        .font(.dfDisplaySmall(21))
+                        .foregroundStyle(isSelected ? Color.dayflowBlack : Color.dayflowPaper)
+
+                    Spacer()
+
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 15, weight: .black))
+                        .foregroundStyle(isSelected ? Color.dayflowBlack : Color.dayflowMist)
+                }
+
+                Text(preset.subtitle)
+                    .font(.dfBodyBold(11))
+                    .lineLimit(2)
+                    .foregroundStyle(isSelected ? Color.dayflowBlack.opacity(0.66) : Color.dayflowMist)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                HStack(spacing: 4) {
+                    ForEach(Array(preset.cycle.prefix(7).enumerated()), id: \.offset) { _, shift in
+                        Circle()
+                            .fill(isSelected ? Color.dayflowBlack.opacity(0.34) : shift.badgeColor)
+                            .frame(width: 8, height: 8)
+                    }
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 126, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(isSelected ? Color.dayflowLime : Color.dayflowPanel.opacity(0.82))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(isSelected ? Color.dayflowLime.opacity(0.60) : Color.dayflowPaper.opacity(0.10), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct ScheduleCounterRow: View {
+    let title: String
+    let subtitle: String
+    let symbol: String
+    let color: Color
+    @Binding var value: Int
+
+    var body: some View {
+        HStack(spacing: 13) {
+            Text(symbol)
+                .font(.dfDisplaySmall(18))
+                .foregroundStyle(symbol == "Н" ? Color.dayflowPaper : Color.dayflowBlack)
+                .frame(width: 42, height: 42)
+                .background(Circle().fill(color))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.dfDisplaySmall(17))
+                    .foregroundStyle(Color.dayflowPaper)
+
+                Text(subtitle)
+                    .font(.dfBodyBold(11))
+                    .foregroundStyle(Color.dayflowMist)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            HStack(spacing: 6) {
+                ScheduleCounterButton(systemName: "minus", isEnabled: value > 0) {
+                    value = max(value - 1, 0)
+                }
+
+                Text("\(value)")
+                    .font(.dfDisplaySmall(18))
+                    .foregroundStyle(Color.dayflowPaper)
+                    .frame(width: 34, height: 34)
+
+                ScheduleCounterButton(systemName: "plus", isEnabled: value < 31) {
+                    value = min(value + 1, 31)
+                }
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.dayflowPanel.opacity(0.82))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1)
+        )
+    }
+}
+
+private struct ScheduleCounterButton: View {
+    let systemName: String
+    let isEnabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 12, weight: .black))
+                .foregroundStyle(isEnabled ? Color.dayflowPaper : Color.dayflowMist.opacity(0.38))
+                .frame(width: 34, height: 34)
+                .background(Circle().fill(Color.dayflowBlack.opacity(0.34)))
+                .overlay(Circle().stroke(Color.dayflowPaper.opacity(0.08), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+    }
+}
+
+private struct SchedulePreviewDay: Identifiable {
+    let id: Int
+    let dayText: String
+    let weekdayText: String
+    let shift: ShiftKind
+}
+
+private struct SchedulePreviewChip: View {
+    let day: SchedulePreviewDay
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(day.weekdayText)
+                .font(.dfBodyBold(10))
+                .foregroundStyle(Color.dayflowMist)
+
+            Text(day.dayText)
+                .font(.dfDisplaySmall(16))
+                .foregroundStyle(Color.dayflowPaper)
+
+            Text(day.shift.badgeTitle)
+                .font(.dfDisplaySmall(13))
+                .foregroundStyle(day.shift.badgeForeground)
+                .frame(width: 30, height: 30)
+                .background(Circle().fill(day.shift.badgeColor))
+        }
+        .frame(width: 58, height: 96)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.dayflowPanel.opacity(0.82))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1)
+        )
+    }
+}
+
+private extension ShiftScheduleFormula {
+    init(cycle: [ShiftKind]) {
+        self.init(
+            dayCount: cycle.filter { $0 == .day }.count,
+            nightCount: cycle.filter { $0 == .night }.count,
+            recoveryCount: cycle.filter { $0 == .recovery }.count,
+            restCount: cycle.filter { $0 == .rest }.count
+        )
     }
 }
 

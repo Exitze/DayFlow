@@ -559,6 +559,67 @@ final class DayPlanStoreTests: XCTestCase {
         XCTAssertEqual(store.effectiveShift(for: addingDays(5, to: start)), .rest)
     }
 
+    func testDayNightRestPresetRepeatsDayNightRecoveryRest() throws {
+        let start = date(year: 2026, month: 5, day: 2)
+        let schedule = ShiftSchedule.makePreset(.dayNightRest, starting: start, calendar: testCalendar)
+
+        XCTAssertEqual(schedule.name, "День/Ночь")
+        XCTAssertEqual(schedule.cycle, [.day, .night, .recovery, .rest])
+        XCTAssertEqual(schedule.shift(on: start, calendar: testCalendar), .day)
+        XCTAssertEqual(schedule.shift(on: addingDays(1, to: start), calendar: testCalendar), .night)
+        XCTAssertEqual(schedule.shift(on: addingDays(2, to: start), calendar: testCalendar), .recovery)
+        XCTAssertEqual(schedule.shift(on: addingDays(3, to: start), calendar: testCalendar), .rest)
+        XCTAssertEqual(schedule.shift(on: addingDays(4, to: start), calendar: testCalendar), .day)
+    }
+
+    func testFiveTwoPresetRepeatsFiveWorkDaysAndTwoRestDays() throws {
+        let start = date(year: 2026, month: 5, day: 4)
+        let schedule = ShiftSchedule.makePreset(.fiveTwo, starting: start, calendar: testCalendar)
+
+        XCTAssertEqual(schedule.name, "5/2")
+        XCTAssertEqual(schedule.cycle, [.day, .day, .day, .day, .day, .rest, .rest])
+        XCTAssertEqual(schedule.shift(on: addingDays(4, to: start), calendar: testCalendar), .day)
+        XCTAssertEqual(schedule.shift(on: addingDays(5, to: start), calendar: testCalendar), .rest)
+        XCTAssertEqual(schedule.shift(on: addingDays(7, to: start), calendar: testCalendar), .day)
+    }
+
+    func testCustomShiftFormulaBuildsCycleInDayNightRecoveryRestOrder() throws {
+        let formula = ShiftScheduleFormula(dayCount: 3, nightCount: 4, recoveryCount: 1, restCount: 5)
+
+        XCTAssertEqual(formula.cycle, [
+            .day, .day, .day,
+            .night, .night, .night, .night,
+            .recovery,
+            .rest, .rest, .rest, .rest, .rest
+        ])
+        XCTAssertEqual(formula.title, "3Д · 4Н · 1О · 5В")
+    }
+
+    func testCustomShiftScheduleUsesFormulaFromSelectedStartDate() throws {
+        let start = date(year: 2026, month: 5, day: 2)
+        let formula = ShiftScheduleFormula(dayCount: 1, nightCount: 1, recoveryCount: 1, restCount: 2)
+        let schedule = try ShiftSchedule.makeCustom(formula: formula, starting: start, calendar: testCalendar)
+
+        XCTAssertEqual(schedule.preset, .custom)
+        XCTAssertEqual(schedule.name, "1Д · 1Н · 1О · 2В")
+        XCTAssertEqual(schedule.shift(on: start, calendar: testCalendar), .day)
+        XCTAssertEqual(schedule.shift(on: addingDays(1, to: start), calendar: testCalendar), .night)
+        XCTAssertEqual(schedule.shift(on: addingDays(2, to: start), calendar: testCalendar), .recovery)
+        XCTAssertEqual(schedule.shift(on: addingDays(3, to: start), calendar: testCalendar), .rest)
+        XCTAssertEqual(schedule.shift(on: addingDays(5, to: start), calendar: testCalendar), .day)
+    }
+
+    func testCustomShiftScheduleRejectsEmptyFormula() throws {
+        let start = date(year: 2026, month: 5, day: 2)
+        let formula = ShiftScheduleFormula(dayCount: 0, nightCount: 0, recoveryCount: 0, restCount: 0)
+
+        XCTAssertThrowsError(
+            try ShiftSchedule.makeCustom(formula: formula, starting: start, calendar: testCalendar)
+        ) { error in
+            XCTAssertEqual(error as? ShiftScheduleValidationError, .emptyCycle)
+        }
+    }
+
     func testManualShiftOverridesAutomaticScheduleWithoutChangingCycle() throws {
         let start = date(year: 2026, month: 5, day: 2)
         let overriddenDay = addingDays(2, to: start)
