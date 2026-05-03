@@ -2144,6 +2144,44 @@ private struct LegalDocumentSheet: View {
                             .foregroundStyle(Color.dayflowMist)
                     }
 
+                    Link(destination: document.publicURL) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "globe")
+                                .font(.system(size: 15, weight: .black))
+                                .foregroundStyle(Color.dayflowBlack)
+                                .frame(width: 38, height: 38)
+                                .background(Circle().fill(Color.dayflowLime))
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Открыть веб-версию")
+                                    .font(.dfDisplaySmall(15))
+                                    .foregroundStyle(Color.dayflowPaper)
+
+                                Text(document.publicURLString)
+                                    .font(.dfBody(11))
+                                    .foregroundStyle(Color.dayflowMist)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.72)
+                            }
+
+                            Spacer(minLength: 0)
+
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 12, weight: .black))
+                                .foregroundStyle(Color.dayflowMist)
+                        }
+                        .padding(15)
+                        .background(
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .fill(Color.dayflowPanel.opacity(0.82))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .stroke(Color.dayflowLime.opacity(0.22), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+
                     ForEach(document.sections) { section in
                         VStack(alignment: .leading, spacing: 9) {
                             Text(section.title)

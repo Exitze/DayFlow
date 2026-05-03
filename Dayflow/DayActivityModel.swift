@@ -513,12 +513,27 @@ public enum AppLegalDocument: String, CaseIterable, Equatable, Identifiable {
     public var subtitle: String {
         switch self {
         case .privacyPolicy:
-            return "локальные данные, без трекинга"
+            return "официальная политика данных"
         case .terms:
-            return "правила использования Dayflow"
+            return "официальные правила использования"
         case .support:
-            return "что указать в App Store Connect"
+            return "email и публичная страница"
         }
+    }
+
+    public var publicURLString: String {
+        switch self {
+        case .privacyPolicy:
+            return "https://exitze.github.io/DayFlow/privacy.html"
+        case .terms:
+            return "https://exitze.github.io/DayFlow/terms.html"
+        case .support:
+            return "https://exitze.github.io/DayFlow/support.html"
+        }
+    }
+
+    public var publicURL: URL {
+        URL(string: publicURLString)!
     }
 
     public var icon: String {
@@ -537,6 +552,10 @@ public enum AppLegalDocument: String, CaseIterable, Equatable, Identifiable {
         case .privacyPolicy:
             return [
                 AppLegalSection(
+                    title: "Официальная ссылка",
+                    body: "Веб-версия документа: https://exitze.github.io/DayFlow/privacy.html"
+                ),
+                AppLegalSection(
                     title: "Коротко",
                     body: "Dayflow хранит активности, заметки, смены, график и настройки только локально на устройстве через UserDefaults. Приложение не отправляет эти данные на сервер, не продает их и не использует трекинг."
                 ),
@@ -551,10 +570,18 @@ public enum AppLegalDocument: String, CaseIterable, Equatable, Identifiable {
                 AppLegalSection(
                     title: "Аккаунты и аналитика",
                     body: "Dayflow не создает аккаунты, не требует входа, не подключает рекламные сети, не использует стороннюю аналитику и не передает данные другим компаниям."
+                ),
+                AppLegalSection(
+                    title: "Контакт",
+                    body: "По вопросам конфиденциальности можно написать на Exitze@icloud.com."
                 )
             ]
         case .terms:
             return [
+                AppLegalSection(
+                    title: "Официальная ссылка",
+                    body: "Веб-версия документа: https://exitze.github.io/DayFlow/terms.html"
+                ),
                 AppLegalSection(
                     title: "Использование",
                     body: "Dayflow помогает вести личный план дня, календарь, смены и статистику. Пользователь отвечает за точность данных, которые он сам добавляет в приложение."
@@ -566,17 +593,29 @@ public enum AppLegalDocument: String, CaseIterable, Equatable, Identifiable {
                 AppLegalSection(
                     title: "Без медицинских гарантий",
                     body: "Активности, графики и статистика не являются медицинской, финансовой или юридической рекомендацией. Это личный органайзер."
+                ),
+                AppLegalSection(
+                    title: "Контакт",
+                    body: "Вопросы по условиям использования можно отправить на Exitze@icloud.com."
                 )
             ]
         case .support:
             return [
                 AppLegalSection(
-                    title: "Что нужно для App Store",
-                    body: "В App Store Connect понадобятся рабочий Support URL и Privacy Policy URL. Эти страницы должны быть доступны публично в браузере до отправки приложения на review."
+                    title: "Официальная ссылка",
+                    body: "Веб-версия поддержки: https://exitze.github.io/DayFlow/support.html"
+                ),
+                AppLegalSection(
+                    title: "Контакт поддержки",
+                    body: "Email: Exitze@icloud.com. В письме укажите Dayflow, версию iOS, модель iPhone и короткое описание проблемы."
                 ),
                 AppLegalSection(
                     title: "Что писать в поддержку",
                     body: "Укажи название приложения, версию iOS, модель iPhone и коротко опиши проблему. Если данные были удалены через сброс или удаление приложения, Dayflow не сможет восстановить их с сервера, потому серверного хранения нет."
+                ),
+                AppLegalSection(
+                    title: "Локальные данные",
+                    body: "Dayflow хранит данные на устройстве. Если активность, заметка или смена не отображается, сначала проверь выбранный день календаря и текущий фильтр."
                 )
             ]
         }

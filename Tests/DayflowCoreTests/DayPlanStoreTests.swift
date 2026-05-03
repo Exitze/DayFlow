@@ -128,6 +128,20 @@ final class DayPlanStoreTests: XCTestCase {
         XCTAssertTrue(body.contains("можно удалить"))
     }
 
+    func testLegalDocumentsExposePublicReleaseUrls() throws {
+        XCTAssertEqual(AppLegalDocument.privacyPolicy.publicURLString, "https://exitze.github.io/DayFlow/privacy.html")
+        XCTAssertEqual(AppLegalDocument.terms.publicURLString, "https://exitze.github.io/DayFlow/terms.html")
+        XCTAssertEqual(AppLegalDocument.support.publicURLString, "https://exitze.github.io/DayFlow/support.html")
+    }
+
+    func testSupportDocumentIsUserFacingInsteadOfAppStoreInstructions() throws {
+        let body = AppLegalDocument.support.body
+
+        XCTAssertTrue(body.contains("Exitze@icloud.com"))
+        XCTAssertTrue(body.contains("Dayflow"))
+        XCTAssertFalse(body.contains("App Store Connect"))
+    }
+
     func testStoreStartsEmptyWhenStorageHasNoActivities() throws {
         let store = DayPlanStore(storage: MemoryActivityStorage())
 
