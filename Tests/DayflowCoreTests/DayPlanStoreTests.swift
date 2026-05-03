@@ -485,6 +485,22 @@ final class DayPlanStoreTests: XCTestCase {
         XCTAssertEqual(DayflowCurrentDay.refreshed(currentDay, using: nextDay, calendar: testCalendar), nextDay)
     }
 
+    func testCalendarMonthNavigationPreservesDayWhenPossible() throws {
+        let may15 = date(year: 2026, month: 5, day: 15)
+        let april15 = DayflowCalendarMonthNavigator.date(byAddingMonths: -1, to: may15, calendar: testCalendar)
+        let june15 = DayflowCalendarMonthNavigator.date(byAddingMonths: 1, to: may15, calendar: testCalendar)
+
+        XCTAssertEqual(april15, date(year: 2026, month: 4, day: 15))
+        XCTAssertEqual(june15, date(year: 2026, month: 6, day: 15))
+    }
+
+    func testCalendarMonthNavigationClampsToLastDayOfShortMonth() throws {
+        let january31 = date(year: 2026, month: 1, day: 31)
+        let februaryDate = DayflowCalendarMonthNavigator.date(byAddingMonths: 1, to: january31, calendar: testCalendar)
+
+        XCTAssertEqual(februaryDate, date(year: 2026, month: 2, day: 28))
+    }
+
     func testStoredCalendarStateReloadsAcrossTabsAndLaunches() throws {
         let today = date(year: 2026, month: 5, day: 2)
         let storage = MemoryActivityStorage()

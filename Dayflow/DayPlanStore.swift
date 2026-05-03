@@ -89,6 +89,31 @@ public enum DayflowCurrentDay {
     }
 }
 
+public enum DayflowCalendarMonthNavigator {
+    public static func date(byAddingMonths monthOffset: Int, to selectedDate: Date, calendar: Calendar = .current) -> Date {
+        let sourceComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
+        let sourceDay = sourceComponents.day ?? 1
+
+        var monthStartComponents = DateComponents()
+        monthStartComponents.calendar = calendar
+        monthStartComponents.timeZone = calendar.timeZone
+        monthStartComponents.year = sourceComponents.year
+        monthStartComponents.month = sourceComponents.month
+        monthStartComponents.day = 1
+
+        let monthStart = calendar.date(from: monthStartComponents) ?? selectedDate
+        let targetMonthStart = calendar.date(byAdding: .month, value: monthOffset, to: monthStart) ?? monthStart
+        let targetRange = calendar.range(of: .day, in: .month, for: targetMonthStart) ?? 1..<32
+        let targetDay = min(sourceDay, max(1, targetRange.count))
+
+        var targetComponents = calendar.dateComponents([.year, .month], from: targetMonthStart)
+        targetComponents.calendar = calendar
+        targetComponents.timeZone = calendar.timeZone
+        targetComponents.day = targetDay
+        return calendar.date(from: targetComponents) ?? targetMonthStart
+    }
+}
+
 public enum DayflowStorageMigration {
     @discardableResult
     public static func migrateIfNeeded(from legacyStorage: DayActivityStorage, to sharedStorage: DayActivityStorage) throws -> Bool {

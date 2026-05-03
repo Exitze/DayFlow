@@ -21,7 +21,9 @@ struct DayflowCalendarView: View {
                     weekdaySymbols: weekdaySymbols,
                     activityCount: { store.activities(on: $0).count },
                     shiftForDay: { store.effectiveShift(for: $0) },
-                    contentWidth: contentWidth
+                    contentWidth: contentWidth,
+                    onMoveMonth: moveMonth,
+                    onSelectToday: selectToday
                 )
 
                 DailyActivitiesBlock(
@@ -146,6 +148,18 @@ struct DayflowCalendarView: View {
             errorText = "Автосмена не вернулась."
         }
     }
+
+    private func moveMonth(by monthOffset: Int) {
+        withAnimation(.spring(response: 0.44, dampingFraction: 0.86)) {
+            selectedDate = DayflowCalendarMonthNavigator.date(byAddingMonths: monthOffset, to: selectedDate, calendar: calendar)
+        }
+    }
+
+    private func selectToday() {
+        withAnimation(.spring(response: 0.44, dampingFraction: 0.86)) {
+            selectedDate = Date()
+        }
+    }
 }
 
 private struct CalendarHero: View {
@@ -155,33 +169,55 @@ private struct CalendarHero: View {
     let activityCount: (Date) -> Int
     let shiftForDay: (Date) -> ShiftKind
     let contentWidth: CGFloat
+    let onMoveMonth: (Int) -> Void
+    let onSelectToday: () -> Void
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 7)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .center, spacing: 14) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(yearText)
-                        .font(.dfBodyBold(14))
-                        .foregroundStyle(Color.dayflowPaper.opacity(0.72))
+                    HStack(spacing: 8) {
+                        Text(yearText)
+                            .font(.dfBodyBold(14))
+                            .foregroundStyle(Color.dayflowPaper.opacity(0.72))
+
+                        if !isCurrentMonth {
+                            Button(action: onSelectToday) {
+                                Text("Сегодня")
+                                    .font(.dfBodyBold(11))
+                                    .foregroundStyle(Color.dayflowBlack)
+                                    .padding(.horizontal, 10)
+                                    .frame(height: 24)
+                                    .background(Capsule().fill(Color.dayflowLime))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Вернуться к сегодняшнему дню")
+                        }
+                    }
 
                     HStack(spacing: 8) {
                         Text(monthText)
                             .font(.dfDisplaySmall(30))
                             .foregroundStyle(Color.dayflowPaper)
 
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 13, weight: .black))
-                            .foregroundStyle(Color.dayflowPaper.opacity(0.76))
+                        Text(dayNumberText)
+                            .font(.dfDisplaySmall(18))
+                            .foregroundStyle(Color.dayflowLime)
+                            .padding(.horizontal, 9)
+                            .frame(height: 30)
+                            .background(Capsule().fill(Color.dayflowPanel.opacity(0.42)))
+                            .overlay(Capsule().stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1))
                     }
                 }
 
                 Spacer()
 
-                Text(dayNumberText)
-                    .font(.dfDisplay(46))
-                    .foregroundStyle(Color.dayflowLime)
+                CalendarMonthStepper(
+                    onPrevious: { onMoveMonth(-1) },
+                    onNext: { onMoveMonth(1) }
+                )
             }
 
             HStack(spacing: 8) {
@@ -201,10 +237,17 @@ private struct CalendarHero: View {
                         isToday: Calendar.current.isDateInToday(day.date),
                         activityCount: activityCount(day.date),
                         shift: shiftForDay(day.date),
-                        action: { selectedDate = day.date }
+                        action: {
+                            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                                selectedDate = day.date
+                            }
+                        }
                     )
                 }
             }
+            .id(monthGridID)
+            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            .animation(.spring(response: 0.44, dampingFraction: 0.86), value: monthGridID)
         }
         .padding(20)
         .frame(width: safeContentWidth)
@@ -251,8 +294,59 @@ private struct CalendarHero: View {
         String(Calendar.current.component(.day, from: selectedDate))
     }
 
+    private var isCurrentMonth: Bool {
+        Calendar.current.isDate(selectedDate, equalTo: Date(), toGranularity: .month)
+    }
+
+    private var monthGridID: String {
+        let components = Calendar.current.dateComponents([.year, .month], from: selectedDate)
+        return "\(components.year ?? 0)-\(components.month ?? 0)"
+    }
+
     private var safeContentWidth: CGFloat {
         contentWidth.isFinite ? max(1, contentWidth) : 1
+    }
+}
+
+private struct CalendarMonthStepper: View {
+    let onPrevious: () -> Void
+    let onNext: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            CalendarMonthStepButton(systemName: "chevron.left", action: onPrevious)
+
+            Rectangle()
+                .fill(Color.dayflowPaper.opacity(0.12))
+                .frame(width: 1, height: 22)
+
+            CalendarMonthStepButton(systemName: "chevron.right", action: onNext)
+        }
+        .padding(5)
+        .background(
+            Capsule()
+                .fill(Color.dayflowPanel.opacity(0.52))
+                .shadow(color: Color.black.opacity(0.18), radius: 18, x: 0, y: 10)
+        )
+        .overlay(Capsule().stroke(Color.dayflowPaper.opacity(0.12), lineWidth: 1))
+    }
+}
+
+private struct CalendarMonthStepButton: View {
+    let systemName: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 14, weight: .black))
+                .foregroundStyle(Color.dayflowPaper)
+                .frame(width: 38, height: 38)
+                .background(Circle().fill(Color.dayflowBlack.opacity(0.24)))
+                .overlay(Circle().stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(systemName == "chevron.left" ? "Предыдущий месяц" : "Следующий месяц")
     }
 }
 
