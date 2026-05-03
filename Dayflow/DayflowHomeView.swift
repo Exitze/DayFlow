@@ -290,22 +290,22 @@ private struct DayflowOnboardingView: View {
                     .padding(.top, 10)
 
                     TabView(selection: $step) {
-                        OnboardingPageFrame(contentWidth: contentWidth) {
+                        OnboardingPageFrame(pageWidth: safeWidth, contentWidth: contentWidth) {
                             OnboardingIntroPage(today: today)
                         }
                             .tag(DayflowOnboardingStep.intro)
 
-                        OnboardingPageFrame(contentWidth: contentWidth) {
+                        OnboardingPageFrame(pageWidth: safeWidth, contentWidth: contentWidth) {
                             OnboardingScenarioPage(selectedScenario: $selectedScenario)
                         }
                             .tag(DayflowOnboardingStep.scenario)
 
-                        OnboardingPageFrame(contentWidth: contentWidth) {
+                        OnboardingPageFrame(pageWidth: safeWidth, contentWidth: contentWidth) {
                             OnboardingShiftPage(selectedPreset: $selectedShiftPreset)
                         }
                             .tag(DayflowOnboardingStep.shift)
 
-                        OnboardingPageFrame(contentWidth: contentWidth) {
+                        OnboardingPageFrame(pageWidth: safeWidth, contentWidth: contentWidth) {
                             OnboardingActivityTemplatePage(
                                 scenario: selectedScenario,
                                 selectedTemplateIDs: $selectedTemplateIDs
@@ -408,13 +408,21 @@ private struct DayflowOnboardingView: View {
 }
 
 private struct OnboardingPageFrame<Content: View>: View {
+    let pageWidth: CGFloat
     let contentWidth: CGFloat
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        content()
-            .frame(width: contentWidth)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        HStack(spacing: 0) {
+            Spacer(minLength: 0)
+
+            content()
+                .frame(width: contentWidth)
+
+            Spacer(minLength: 0)
+        }
+        .frame(width: pageWidth)
+        .frame(maxHeight: .infinity, alignment: .center)
     }
 }
 
