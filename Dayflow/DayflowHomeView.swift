@@ -36,9 +36,12 @@ enum DayflowTab: CaseIterable {
 }
 
 struct DayflowHomeView: View {
+    @Environment(\.scenePhase) private var scenePhase
+
     @StateObject private var store = DayPlanStore()
     @StateObject private var notificationController = DayflowNotificationController()
     @State private var isAlive = false
+    @State private var currentDate = Date()
     @State private var selectedTab: DayflowTab = .home
     @State private var selectedFilter: DayActivityCategory = .all
     @State private var isShowingAddActivity = false
@@ -49,11 +52,13 @@ struct DayflowHomeView: View {
     @AppStorage("dayflow.settings.showBackdropPhoto") private var showBackdropPhoto = true
     @AppStorage("dayflow.settings.showFineGrid") private var showFineGrid = true
 
+    private let dayTicker = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
+
     var body: some View {
         GeometryReader { proxy in
             let safeScreenWidth = proxy.size.width.isFinite ? max(0, proxy.size.width) : 0
             let contentWidth = min(max(safeScreenWidth - 32, 1), 378)
-            let today = Date()
+            let today = currentDate
             let visibleActivities = store.activities(on: today, filteredBy: selectedFilter)
             let totalActivities = store.activities(on: today).count
             let todaySummary = store.summary(on: today)
@@ -140,6 +145,15 @@ struct DayflowHomeView: View {
                 }
                 notificationController.refreshStatus()
                 notificationController.rescheduleIfNeeded(store: store)
+                refreshCurrentDate()
+            }
+            .onReceive(dayTicker) { tickDate in
+                refreshCurrentDate(using: tickDate)
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    refreshCurrentDate()
+                }
             }
             .onReceive(store.$activities.dropFirst()) { _ in
                 WidgetCenter.shared.reloadAllTimelines()
@@ -155,7 +169,7 @@ struct DayflowHomeView: View {
             }
             .sheet(isPresented: $isShowingAddActivity) {
                 NewActivitySheet { newActivity in
-                    try store.add(newActivity, on: Date())
+                    try store.add(newActivity, on: currentDate)
                 }
             }
             .sheet(isPresented: $isShowingNotificationSettings) {
@@ -185,6 +199,13 @@ struct DayflowHomeView: View {
         } catch {
             storeErrorMessage = "Удаление не записалось. Попробуй еще раз."
             isShowingStoreError = true
+        }
+    }
+
+    private func refreshCurrentDate(using candidateDate: Date = Date()) {
+        let refreshedDate = DayflowCurrentDay.refreshed(currentDate, using: candidateDate)
+        if refreshedDate != currentDate {
+            currentDate = refreshedDate
         }
     }
 }

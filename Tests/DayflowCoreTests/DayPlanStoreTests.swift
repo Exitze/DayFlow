@@ -458,6 +458,33 @@ final class DayPlanStoreTests: XCTestCase {
         XCTAssertEqual(store.activities(on: tomorrow), [])
     }
 
+    func testLegacyActivitiesWithoutDayStayOnLaunchDayAfterDayChanges() throws {
+        let launchDay = date(year: 2026, month: 5, day: 2)
+        let nextDay = date(year: 2026, month: 5, day: 3)
+        var currentDay = launchDay
+        let storage = MemoryActivityStorage()
+        storage.activitiesToLoad = [
+            DayActivity(title: "Бег", timeMinutes: 420, detail: "Парк", category: .body, icon: "figure.run", accent: .sky)
+        ]
+        let store = DayPlanStore(storage: storage, todayProvider: { currentDay })
+
+        currentDay = nextDay
+
+        XCTAssertEqual(store.activities(filteredBy: .all), [])
+        XCTAssertEqual(store.activities(on: launchDay).map(\.title), ["Бег"])
+        XCTAssertEqual(store.activities(on: nextDay), [])
+        XCTAssertEqual(storage.savedActivities.first?.dayID, DayActivity.dayID(for: launchDay, calendar: testCalendar))
+    }
+
+    func testCurrentDayRefreshChangesOnlyAfterCalendarDayBoundary() throws {
+        let currentDay = date(year: 2026, month: 5, day: 2)
+        let sameDayLater = hour(23, minute: 55, on: currentDay)
+        let nextDay = date(year: 2026, month: 5, day: 3)
+
+        XCTAssertEqual(DayflowCurrentDay.refreshed(currentDay, using: sameDayLater, calendar: testCalendar), currentDay)
+        XCTAssertEqual(DayflowCurrentDay.refreshed(currentDay, using: nextDay, calendar: testCalendar), nextDay)
+    }
+
     func testStoredCalendarStateReloadsAcrossTabsAndLaunches() throws {
         let today = date(year: 2026, month: 5, day: 2)
         let storage = MemoryActivityStorage()

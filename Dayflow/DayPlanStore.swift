@@ -83,6 +83,12 @@ public enum DayflowAppGroup {
     public static let identifier = "group.com.exitze.dayflow"
 }
 
+public enum DayflowCurrentDay {
+    public static func refreshed(_ currentDate: Date, using candidateDate: Date, calendar: Calendar = .current) -> Date {
+        calendar.isDate(currentDate, inSameDayAs: candidateDate) ? currentDate : candidateDate
+    }
+}
+
 public enum DayflowStorageMigration {
     @discardableResult
     public static func migrateIfNeeded(from legacyStorage: DayActivityStorage, to sharedStorage: DayActivityStorage) throws -> Bool {
@@ -142,12 +148,32 @@ public final class DayPlanStore: ObservableObject {
         calendar: Calendar = .current,
         todayProvider: @escaping () -> Date = Date.init
     ) {
+        let loadedActivities = DayActivity.sorted((try? storage.loadActivities()) ?? [])
+        let todayDayID = DayActivity.dayID(for: todayProvider(), calendar: calendar)
+        let normalizedActivities = Self.normalizedActivities(loadedActivities, fallbackDayID: todayDayID)
+
+        if normalizedActivities != loadedActivities {
+            try? storage.saveActivities(normalizedActivities)
+        }
+
         self.storage = storage
         self.calendar = calendar
         self.todayProvider = todayProvider
-        self.activities = (try? storage.loadActivities()).map(DayActivity.sorted) ?? []
+        self.activities = normalizedActivities
         self.dayDetails = (try? storage.loadDayDetails())?.sorted { $0.dayID < $1.dayID } ?? []
         self.shiftSchedule = try? storage.loadShiftSchedule()
+    }
+
+    private static func normalizedActivities(_ activities: [DayActivity], fallbackDayID: String) -> [DayActivity] {
+        DayActivity.sorted(activities.map { activity in
+            guard activity.dayID == nil else {
+                return activity
+            }
+
+            var normalizedActivity = activity
+            normalizedActivity.dayID = fallbackDayID
+            return normalizedActivity
+        })
     }
 
     public func activities(filteredBy filter: DayActivityCategory) -> [DayActivity] {
