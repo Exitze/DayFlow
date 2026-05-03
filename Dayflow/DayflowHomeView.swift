@@ -1660,8 +1660,6 @@ private struct DayflowSettingsView: View {
                     selectedLegalDocument = document
                 }
 
-                SettingsReleaseBlock(items: DayflowReleaseReadiness.items)
-
                 SettingsDataBlock(
                     openCount: store.activities.filter { !$0.isCompleted }.count,
                     completedCount: store.activities.filter(\.isCompleted).count,
@@ -2118,77 +2116,6 @@ private struct SettingsDocumentRow: View {
             )
         }
         .buttonStyle(.plain)
-    }
-}
-
-private struct SettingsReleaseBlock: View {
-    let items: [ReleaseReadinessItem]
-
-    private var projectCount: Int {
-        items.filter(\.isHandledInProject).count
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("App Store")
-                    .font(.dfDisplaySmall(22))
-                    .foregroundStyle(Color.dayflowPaper)
-
-                Spacer()
-
-                Text("\(projectCount)/\(items.count) в проекте")
-                    .font(.dfBodyBold(12))
-                    .foregroundStyle(Color.dayflowLime)
-            }
-
-            VStack(spacing: 10) {
-                ForEach(items) { item in
-                    SettingsReleaseRow(item: item)
-                }
-            }
-        }
-    }
-}
-
-private struct SettingsReleaseRow: View {
-    let item: ReleaseReadinessItem
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 14) {
-            Image(systemName: item.isHandledInProject ? "checkmark" : "arrow.up.right")
-                .font(.system(size: 14, weight: .black))
-                .foregroundStyle(item.isHandledInProject ? Color.dayflowBlack : Color.dayflowPaper)
-                .frame(width: 38, height: 38)
-                .background(Circle().fill(item.isHandledInProject ? Color.dayflowLime : Color.dayflowPanel.opacity(0.96)))
-                .overlay(Circle().stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1))
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.title)
-                    .font(.dfDisplaySmall(16))
-                    .foregroundStyle(Color.dayflowPaper)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-
-                Text(item.detail)
-                    .font(.dfBody(12))
-                    .foregroundStyle(Color.dayflowMist)
-                    .lineLimit(2)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 15)
-        .padding(.vertical, 13)
-        .frame(minHeight: 78)
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.dayflowPanel.opacity(0.76))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(item.isHandledInProject ? Color.dayflowPaper.opacity(0.09) : Color.dayflowRose.opacity(0.18), lineWidth: 1)
-        )
     }
 }
 

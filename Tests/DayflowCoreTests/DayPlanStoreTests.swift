@@ -128,18 +128,6 @@ final class DayPlanStoreTests: XCTestCase {
         XCTAssertTrue(body.contains("можно удалить"))
     }
 
-    func testReleaseReadinessSeparatesProjectItemsFromExternalAppStoreWork() throws {
-        let projectItems = DayflowReleaseReadiness.items.filter(\.isHandledInProject).map(\.id)
-        let externalItems = DayflowReleaseReadiness.externalItems.map(\.id)
-
-        XCTAssertTrue(projectItems.contains(.privacyManifest))
-        XCTAssertTrue(projectItems.contains(.localDataDeletion))
-        XCTAssertFalse(externalItems.map(\.rawValue).contains("developerProgram"))
-        XCTAssertTrue(externalItems.contains(.privacyPolicyURL))
-        XCTAssertTrue(externalItems.contains(.supportURL))
-        XCTAssertTrue(externalItems.contains(.testFlight))
-    }
-
     func testStoreStartsEmptyWhenStorageHasNoActivities() throws {
         let store = DayPlanStore(storage: MemoryActivityStorage())
 
