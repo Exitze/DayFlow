@@ -273,10 +273,12 @@ private struct DayflowOnboardingView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let safeWidth = proxy.size.width.isFinite ? proxy.size.width : 390
-            let contentWidth = min(max(safeWidth - 36, 1), 390)
+            let geometryWidth = proxy.size.width.isFinite ? proxy.size.width : 390
+            let screenWidth = UIScreen.main.bounds.width.isFinite ? UIScreen.main.bounds.width : geometryWidth
+            let pageWidth = min(geometryWidth, screenWidth)
+            let contentWidth = min(max(pageWidth - 48, 1), 354)
 
-            ZStack {
+            ZStack(alignment: .topLeading) {
                 OnboardingBackdrop()
 
                 VStack(spacing: 0) {
@@ -290,22 +292,22 @@ private struct DayflowOnboardingView: View {
                     .padding(.top, 10)
 
                     TabView(selection: $step) {
-                        OnboardingPageFrame(pageWidth: safeWidth, contentWidth: contentWidth) {
+                        OnboardingPageFrame(pageWidth: pageWidth, contentWidth: contentWidth) {
                             OnboardingIntroPage(today: today)
                         }
                             .tag(DayflowOnboardingStep.intro)
 
-                        OnboardingPageFrame(pageWidth: safeWidth, contentWidth: contentWidth) {
+                        OnboardingPageFrame(pageWidth: pageWidth, contentWidth: contentWidth) {
                             OnboardingScenarioPage(selectedScenario: $selectedScenario)
                         }
                             .tag(DayflowOnboardingStep.scenario)
 
-                        OnboardingPageFrame(pageWidth: safeWidth, contentWidth: contentWidth) {
+                        OnboardingPageFrame(pageWidth: pageWidth, contentWidth: contentWidth) {
                             OnboardingShiftPage(selectedPreset: $selectedShiftPreset)
                         }
                             .tag(DayflowOnboardingStep.shift)
 
-                        OnboardingPageFrame(pageWidth: safeWidth, contentWidth: contentWidth) {
+                        OnboardingPageFrame(pageWidth: pageWidth, contentWidth: contentWidth) {
                             OnboardingActivityTemplatePage(
                                 scenario: selectedScenario,
                                 selectedTemplateIDs: $selectedTemplateIDs
@@ -315,7 +317,7 @@ private struct DayflowOnboardingView: View {
                     }
                     .tabViewStyle(.page(indexDisplayMode: .never))
                     .animation(.spring(response: 0.42, dampingFraction: 0.88), value: step)
-                    .frame(width: safeWidth)
+                    .frame(width: pageWidth)
                     .clipped()
 
                     OnboardingPrimaryButton(
@@ -328,7 +330,7 @@ private struct DayflowOnboardingView: View {
                     .padding(.top, 12)
                     .padding(.bottom, 18)
                 }
-                .frame(maxWidth: .infinity)
+                .frame(width: pageWidth)
             }
         }
         .preferredColorScheme(.dark)
