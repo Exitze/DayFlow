@@ -722,14 +722,17 @@ private struct ScheduleBuilderSheet: View {
                             .foregroundStyle(Color.dayflowMist)
                             .textCase(.uppercase)
 
-                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                            ForEach(Self.quickPresets) { preset in
-                                ScheduleQuickOptionCard(
-                                    preset: preset,
-                                    isSelected: selectedPreset == preset,
-                                    action: { selectPreset(preset) }
-                                )
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(Self.quickPresets) { preset in
+                                    ScheduleQuickOptionCard(
+                                        preset: preset,
+                                        isSelected: selectedPreset == preset,
+                                        action: { selectPreset(preset) }
+                                    )
+                                }
                             }
+                            .padding(.vertical, 1)
                         }
                     }
 
@@ -933,11 +936,13 @@ private struct ScheduleQuickOptionCard: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text(preset.title)
                         .font(.dfDisplaySmall(21))
                         .foregroundStyle(isSelected ? Color.dayflowBlack : Color.dayflowPaper)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     Spacer()
 
@@ -952,6 +957,8 @@ private struct ScheduleQuickOptionCard: View {
                     .foregroundStyle(isSelected ? Color.dayflowBlack.opacity(0.66) : Color.dayflowMist)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
+                Spacer(minLength: 0)
+
                 HStack(spacing: 4) {
                     ForEach(Array(preset.cycle.prefix(7).enumerated()), id: \.offset) { _, shift in
                         Circle()
@@ -961,7 +968,7 @@ private struct ScheduleQuickOptionCard: View {
                 }
             }
             .padding(14)
-            .frame(maxWidth: .infinity, minHeight: 126, alignment: .topLeading)
+            .frame(width: 164, height: 150, alignment: .topLeading)
             .background(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .fill(isSelected ? Color.dayflowLime : Color.dayflowPanel.opacity(0.82))
