@@ -1844,7 +1844,6 @@ private struct DayflowStatsView: View {
 
                 StatsPayrollBlock(
                     summary: payrollSummary,
-                    selectedSummary: selectedShiftSummary,
                     periodTitle: payrollPeriodTitle,
                     exportText: payrollExportText
                 )
@@ -1872,10 +1871,6 @@ private struct DayflowStatsView: View {
         case .month:
             return store.shiftPayrollSummary(forMonthContaining: selectedDate)
         }
-    }
-
-    private var selectedShiftSummary: ShiftWorkdaySummary? {
-        store.shiftWorkdaySummary(for: selectedDate)
     }
 
     private var payrollPeriodTitle: String {
@@ -2505,7 +2500,6 @@ private struct StatsCategoryRow: View {
 
 private struct StatsPayrollBlock: View {
     let summary: ShiftMonthPayrollSummary
-    let selectedSummary: ShiftWorkdaySummary?
     let periodTitle: String
     let exportText: String
 
@@ -2552,45 +2546,6 @@ private struct StatsPayrollBlock: View {
                         PayrollShiftBreakdownRow(breakdown: breakdown)
                     }
                 }
-            }
-
-            if let selectedSummary {
-                HStack(spacing: 12) {
-                    Text(selectedSummary.shift.statsShortTitle)
-                        .font(.dfDisplaySmall(17))
-                        .foregroundStyle(selectedSummary.shift == .night ? Color.dayflowPaper : Color.dayflowBlack)
-                        .frame(width: 46, height: 46)
-                        .background(Circle().fill(selectedSummary.shift.statsColor))
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(selectedSummary.shift.title)
-                            .font(.dfDisplaySmall(18))
-                            .foregroundStyle(Color.dayflowPaper)
-                            .lineLimit(1)
-
-                        Text("\(selectedSummary.startTimeText)-\(selectedSummary.endTimeText) · \(selectedSummary.totalHoursText)")
-                            .font(.dfBodyBold(11))
-                            .foregroundStyle(Color.dayflowMist)
-                            .lineLimit(1)
-                    }
-
-                    Spacer()
-
-                    Text(selectedSummary.payText)
-                        .font(.dfDisplaySmall(18))
-                        .foregroundStyle(Color.dayflowLime)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                }
-                .padding(14)
-                .background(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(Color.dayflowPanel.opacity(0.76))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(Color.dayflowPaper.opacity(0.09), lineWidth: 1)
-                )
             }
 
             if !summary.conflicts.isEmpty {
