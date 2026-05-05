@@ -1,152 +1,50 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dayflow</title>
-  <meta name="description" content="Dayflow: приватный планер дня для смен, привычек, заметок и фокуса.">
+  <meta name="description" content="Dayflow privacy, terms, and support pages.">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body class="landing">
-  <header class="site-header" aria-label="Главная навигация">
-    <a class="brand" href="index.html" aria-label="Dayflow">
-      <span class="mark">D</span>
-      <span>Dayflow</span>
-    </a>
-    <nav class="links" aria-label="Документы">
-      <a href="privacy.html">Privacy</a>
-      <a href="terms.html">Terms</a>
-      <a href="support.html">Support</a>
+<body>
+  <main class="wrap">
+    <nav class="nav" aria-label="Main navigation">
+      <div class="brand"><span class="mark">D</span> Dayflow</div>
+      <div class="links">
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+        <a href="support.html">Support</a>
+      </div>
     </nav>
-  </header>
 
-  <main>
-    <section class="hero" aria-labelledby="hero-title">
-      <div class="hero-bg" aria-hidden="true"></div>
-      <div class="hero-grid" aria-hidden="true"></div>
-      <div class="hero-inner">
-        <div class="hero-copy">
-          <p class="eyebrow">Local-first daily rhythm</p>
-          <h1 id="hero-title">Dayflow</h1>
-          <p class="hero-line">Приватный планер дня для смен, привычек, заметок и фокуса.</p>
-          <p class="lead">Планируй день вокруг реального ритма: работа, тренировки, восстановление, повторяющиеся дела, уведомления и виджеты. Без аккаунта, рекламы и трекинга.</p>
-
-          <div class="download-row" aria-label="Скачивание Dayflow">
-            <button class="download-card" type="button" disabled aria-disabled="true">
-              <span class="download-glyph">iOS</span>
-              <span class="download-copy">
-                <span class="download-title">Скачать для iOS</span>
-                <span class="download-status">В разработке</span>
-              </span>
-            </button>
-            <button class="download-card" type="button" disabled aria-disabled="true">
-              <span class="download-glyph windows-glyph">WIN</span>
-              <span class="download-copy">
-                <span class="download-title">Скачать для Windows</span>
-                <span class="download-status">В разработке</span>
-              </span>
-            </button>
-          </div>
-        </div>
-
-        <div class="rhythm-panel" aria-label="Пример дневного ритма">
-          <div class="panel-topline">
-            <span>Сегодня</span>
-            <span>74%</span>
-          </div>
-          <div class="rhythm-orbit" aria-hidden="true">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
-          <div class="mini-agenda">
-            <div>
-              <span class="time">07:30</span>
-              <strong>Утренняя смена</strong>
-            </div>
-            <div>
-              <span class="time">14:00</span>
-              <strong>Фокус-блок</strong>
-            </div>
-            <div>
-              <span class="time">21:20</span>
-              <strong>Вечерний обзор</strong>
-            </div>
-          </div>
-        </div>
-      </div>
+    <section class="hero">
+      <div class="eyebrow">Local-first iOS planner</div>
+      <h1>Plan your day, calendar shifts, and personal rhythm.</h1>
+      <p class="lead">Dayflow keeps activities, notes, shifts, schedules, and statistics on device. No accounts, no advertising SDKs, no tracking.</p>
     </section>
 
-    <section class="signal-band" aria-label="Ключевые возможности">
-      <div class="signal-item">
+    <section class="grid" aria-label="Documents">
+      <a class="card" href="privacy.html">
         <span>01</span>
-        <strong>План дня</strong>
-        <p>Активности, заметки, напоминания и быстрый перенос незавершённых дел.</p>
-      </div>
-      <div class="signal-item">
+        <h2>Privacy Policy</h2>
+        <p>How Dayflow stores data locally and why the current version does not collect or track personal data.</p>
+      </a>
+      <a class="card" href="terms.html">
         <span>02</span>
-        <strong>Смены</strong>
-        <p>Графики 2/2, 5/2, день, ночь, восстановление и свои формулы.</p>
-      </div>
-      <div class="signal-item">
+        <h2>Terms</h2>
+        <p>Basic usage terms for the Dayflow iOS app and local-first data model.</p>
+      </a>
+      <a class="card" href="support.html">
         <span>03</span>
-        <strong>Приватность</strong>
-        <p>Данные живут на устройстве. Сервер, аккаунт и рекламные SDK не нужны.</p>
-      </div>
-    </section>
-
-    <section class="story-section">
-      <div class="section-copy">
-        <p class="eyebrow">Built for iPhone</p>
-        <h2>Когда обычный todo-лист не понимает твой день.</h2>
-      </div>
-      <div class="story-lines" aria-label="Сценарии Dayflow">
-        <div class="story-line">
-          <span>Смена</span>
-          <strong>День строится от графика, а не наоборот.</strong>
-        </div>
-        <div class="story-line">
-          <span>Рутины</span>
-          <strong>Привычки повторяются по дням недели, датам или типу смены.</strong>
-        </div>
-        <div class="story-line">
-          <span>Виджеты</span>
-          <strong>Следующие действия и прогресс остаются на виду.</strong>
-        </div>
-        <div class="story-line">
-          <span>Локально</span>
-          <strong>Планы, заметки и настройки остаются на твоём устройстве.</strong>
-        </div>
-      </div>
-    </section>
-
-    <section class="documents-section" aria-label="Документы">
-      <div class="section-copy">
-        <p class="eyebrow">App Store ready</p>
-        <h2>Политика, условия и поддержка уже рядом с продуктом.</h2>
-      </div>
-      <div class="document-links">
-        <a href="privacy.html">
-          <span>Privacy Policy</span>
-          <strong>Как Dayflow хранит данные локально и не использует трекинг.</strong>
-        </a>
-        <a href="terms.html">
-          <span>Terms</span>
-          <strong>Базовые условия использования приложения и локальной модели данных.</strong>
-        </a>
-        <a href="support.html">
-          <span>Support</span>
-          <strong>Контакты и подсказки для пользователей, TestFlight и App Store review.</strong>
-        </a>
-      </div>
+        <h2>Support</h2>
+        <p>Contact and troubleshooting guidance for users and App Store review.</p>
+      </a>
     </section>
   </main>
 
   <footer class="footer">
-    <div class="footer-inner">
-      <span>© 2026 Dayflow</span>
-      <span>Private day planner for shifts, habits, notes, and focus.</span>
-    </div>
+    <div class="wrap">© 2026 Dayflow. Built for iOS.</div>
   </footer>
 </body>
 </html>
