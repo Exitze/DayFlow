@@ -8,6 +8,9 @@ struct DayflowCalendarView: View {
     @State private var noteDraft = ""
     @State private var isShowingAddActivity = false
     @State private var isShowingScheduleBuilder = false
+    @State private var isShowingActivityActions = false
+    @State private var selectedActivityForActions: DayActivity?
+    @State private var editingActivity: DayActivity?
     @State private var errorText: String?
 
     private let calendar = Calendar.current
@@ -30,7 +33,7 @@ struct DayflowCalendarView: View {
                 DailyActivitiesBlock(
                     selectedDate: selectedDate,
                     activities: selectedActivities,
-                    onToggle: toggleCompleted,
+                    onShowActions: showActivityActions,
                     onDelete: removeActivity,
                     onAdd: { isShowingAddActivity = true }
                 )
@@ -101,6 +104,29 @@ struct DayflowCalendarView: View {
                 onApply: setSchedule
             )
         }
+        .sheet(item: $editingActivity) { activity in
+            EditActivitySheet(
+                activity: activity,
+                onSave: { newActivity in
+                    try store.update(activity.id, with: newActivity)
+                }
+            )
+        }
+        .confirmationDialog("Задача", isPresented: $isShowingActivityActions, titleVisibility: .visible, presenting: selectedActivityForActions) { activity in
+            Button(activity.isCompleted ? "Вернуть в план" : "Отметить выполненной") {
+                toggleCompleted(activity)
+            }
+
+            Button("Редактировать") {
+                beginEditing(activity)
+            }
+
+            Button(activity.isHabit ? "Пропустить" : "Удалить", role: .destructive) {
+                removeActivity(activity)
+            }
+
+            Button("Отмена", role: .cancel) {}
+        }
     }
 
     private var selectedActivities: [DayActivity] {
@@ -127,12 +153,25 @@ struct DayflowCalendarView: View {
         }
     }
 
+    private func showActivityActions(_ activity: DayActivity) {
+        selectedActivityForActions = latestActivity(matching: activity) ?? activity
+        isShowingActivityActions = true
+    }
+
+    private func beginEditing(_ activity: DayActivity) {
+        editingActivity = latestActivity(matching: activity) ?? activity
+    }
+
     private func removeActivity(_ activity: DayActivity) {
         do {
             try store.remove(activity.id)
         } catch {
             errorText = "Активность не удалилась."
         }
+    }
+
+    private func latestActivity(matching activity: DayActivity) -> DayActivity? {
+        store.activities.first { $0.id == activity.id }
     }
 
     private func repeatPreviousDayIntoSelection() throws -> Int {
@@ -448,7 +487,7 @@ private struct CalendarDayButton: View {
 private struct DailyActivitiesBlock: View {
     let selectedDate: Date
     let activities: [DayActivity]
-    let onToggle: (DayActivity) -> Void
+    let onShowActions: (DayActivity) -> Void
     let onDelete: (DayActivity) -> Void
     let onAdd: () -> Void
 
@@ -486,7 +525,11 @@ private struct DailyActivitiesBlock: View {
             } else {
                 VStack(spacing: 12) {
                     ForEach(activities) { activity in
-                        CalendarActivityRow(activity: activity, onToggle: onToggle, onDelete: onDelete)
+                        CalendarActivityRow(
+                            activity: activity,
+                            onShowActions: onShowActions,
+                            onDelete: onDelete
+                        )
                     }
                 }
             }
@@ -512,12 +555,12 @@ private struct DailyActivitiesBlock: View {
 
 private struct CalendarActivityRow: View {
     let activity: DayActivity
-    let onToggle: (DayActivity) -> Void
+    let onShowActions: (DayActivity) -> Void
     let onDelete: (DayActivity) -> Void
 
     var body: some View {
         Button {
-            onToggle(activity)
+            onShowActions(activity)
         } label: {
             HStack(spacing: 12) {
                 VStack(spacing: 4) {
@@ -570,6 +613,12 @@ private struct CalendarActivityRow: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
+            Button {
+                onShowActions(activity)
+            } label: {
+                Label("Редактировать", systemImage: "pencil")
+            }
+
             Button(role: .destructive) {
                 onDelete(activity)
             } label: {

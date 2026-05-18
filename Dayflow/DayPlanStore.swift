@@ -701,6 +701,36 @@ public final class DayPlanStore: ObservableObject {
         activities = nextActivities
     }
 
+    public func update(_ id: UUID, with newActivity: NewDayActivity) throws {
+        var nextActivities = activities
+
+        guard let index = nextActivities.firstIndex(where: { $0.id == id }) else {
+            throw DayActivityValidationError.activityNotFound
+        }
+
+        let currentActivity = nextActivities[index]
+        let editedActivity = try DayActivity(newActivity)
+        nextActivities[index] = DayActivity(
+            id: currentActivity.id,
+            title: editedActivity.title,
+            timeMinutes: editedActivity.timeMinutes,
+            detail: editedActivity.detail,
+            category: editedActivity.category,
+            icon: editedActivity.icon,
+            accent: editedActivity.accent,
+            isCompleted: currentActivity.isCompleted,
+            dayID: currentActivity.dayID,
+            recurrenceRuleID: currentActivity.recurrenceRuleID,
+            habitID: currentActivity.habitID,
+            habitGoalValue: currentActivity.habitGoalValue,
+            habitGoalUnit: currentActivity.habitGoalUnit
+        )
+
+        nextActivities = DayActivity.sorted(nextActivities)
+        try storage.saveActivities(nextActivities)
+        activities = nextActivities
+    }
+
     public func remove(_ id: UUID) throws {
         if let activity = activities.first(where: { $0.id == id }),
            let habitID = activity.habitID,

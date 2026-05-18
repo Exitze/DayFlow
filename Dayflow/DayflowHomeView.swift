@@ -47,6 +47,9 @@ struct DayflowHomeView: View {
     @State private var isShowingAddActivity = false
     @State private var isShowingNotificationSettings = false
     @State private var isShowingStoreError = false
+    @State private var isShowingActivityActions = false
+    @State private var selectedActivityForActions: DayActivity?
+    @State private var editingActivity: DayActivity?
     @State private var storeErrorMessage = ""
     @AppStorage("dayflow.onboarding.completed") private var hasCompletedOnboarding = false
     @AppStorage("dayflow.settings.liveBackdrop") private var liveBackdrop = true
@@ -96,6 +99,8 @@ struct DayflowHomeView: View {
                                         activities: visibleActivities,
                                         totalCount: totalActivities,
                                         onToggleCompleted: toggleCompleted,
+                                        onShowActions: showActivityActions,
+                                        onEdit: beginEditing,
                                         onDelete: removeActivity,
                                         onAdd: { isShowingAddActivity = true }
                                     )
@@ -206,6 +211,29 @@ struct DayflowHomeView: View {
             .sheet(isPresented: $isShowingNotificationSettings) {
                 DayflowNotificationSettingsSheet(store: store, controller: notificationController)
             }
+            .sheet(item: $editingActivity) { activity in
+                EditActivitySheet(
+                    activity: activity,
+                    onSave: { newActivity in
+                        try store.update(activity.id, with: newActivity)
+                    }
+                )
+            }
+            .confirmationDialog("Задача", isPresented: $isShowingActivityActions, titleVisibility: .visible, presenting: selectedActivityForActions) { activity in
+                Button(activity.isCompleted ? "Вернуть в план" : "Отметить выполненной") {
+                    toggleCompleted(activity)
+                }
+
+                Button("Редактировать") {
+                    beginEditing(activity)
+                }
+
+                Button(activity.isHabit ? "Пропустить" : "Удалить", role: .destructive) {
+                    removeActivity(activity)
+                }
+
+                Button("Отмена", role: .cancel) {}
+            }
             .fullScreenCover(isPresented: onboardingPresentation) {
                 DayflowOnboardingView(
                     today: currentDate,
@@ -242,6 +270,15 @@ struct DayflowHomeView: View {
         }
     }
 
+    private func showActivityActions(_ activity: DayActivity) {
+        selectedActivityForActions = latestActivity(matching: activity) ?? activity
+        isShowingActivityActions = true
+    }
+
+    private func beginEditing(_ activity: DayActivity) {
+        editingActivity = latestActivity(matching: activity) ?? activity
+    }
+
     private func removeActivity(_ activity: DayActivity) {
         do {
             try store.remove(activity.id)
@@ -249,6 +286,10 @@ struct DayflowHomeView: View {
             storeErrorMessage = "Удаление не записалось. Попробуй еще раз."
             isShowingStoreError = true
         }
+    }
+
+    private func latestActivity(matching activity: DayActivity) -> DayActivity? {
+        store.activities.first { $0.id == activity.id }
     }
 
     private func repeatPreviousDayIntoToday() throws -> Int {
@@ -1422,6 +1463,8 @@ private struct AgendaBlock: View {
     let activities: [DayActivity]
     let totalCount: Int
     let onToggleCompleted: (DayActivity) -> Void
+    let onShowActions: (DayActivity) -> Void
+    let onEdit: (DayActivity) -> Void
     let onDelete: (DayActivity) -> Void
     let onAdd: () -> Void
 
@@ -1448,6 +1491,8 @@ private struct AgendaBlock: View {
                             activity: activity,
                             index: index,
                             onToggleCompleted: onToggleCompleted,
+                            onShowActions: onShowActions,
+                            onEdit: onEdit,
                             onDelete: onDelete
                         )
                     }
@@ -1473,6 +1518,8 @@ private struct AgendaRow: View {
     let activity: DayActivity
     let index: Int
     let onToggleCompleted: (DayActivity) -> Void
+    let onShowActions: (DayActivity) -> Void
+    let onEdit: (DayActivity) -> Void
     let onDelete: (DayActivity) -> Void
 
     var body: some View {
@@ -1559,9 +1606,15 @@ private struct AgendaRow: View {
         )
         .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
         .onTapGesture {
-            onToggleCompleted(activity)
+            onShowActions(activity)
         }
         .contextMenu {
+            Button {
+                onEdit(activity)
+            } label: {
+                Label("Редактировать", systemImage: "pencil")
+            }
+
             Button(role: .destructive) {
                 onDelete(activity)
             } label: {
@@ -4763,6 +4816,180 @@ struct SheetTextField: View {
                         .stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1)
                 )
         }
+    }
+}
+
+struct EditActivitySheet: View {
+    let activity: DayActivity
+    let onSave: (NewDayActivity) throws -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var title: String
+    @State private var detail: String
+    @State private var time: Date
+    @State private var category: DayActivityCategory
+    @State private var errorText: String?
+
+    init(activity: DayActivity, onSave: @escaping (NewDayActivity) throws -> Void) {
+        self.activity = activity
+        self.onSave = onSave
+        _title = State(initialValue: activity.title)
+        _detail = State(initialValue: activity.detail == "Без деталей" ? "" : activity.detail)
+        _time = State(initialValue: Self.date(fromMinutes: activity.timeMinutes))
+        _category = State(initialValue: activity.category == .all ? .personal : activity.category)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Редактировать")
+                            .font(.dfDisplay(30))
+                            .foregroundStyle(Color.dayflowPaper)
+
+                        Text(activity.timeText)
+                            .font(.dfBodyBold(13))
+                            .foregroundStyle(Color.dayflowMist)
+                    }
+                    .padding(.top, 10)
+
+                    SheetTextField(title: "Название", placeholder: "Название задачи", text: $title)
+                    SheetTextField(title: "Детали", placeholder: "Парк, 40 мин", text: $detail)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Время")
+                            .font(.dfBodyBold(12))
+                            .foregroundStyle(Color.dayflowMist)
+                            .textCase(.uppercase)
+
+                        HStack {
+                            Text(selectedTimeText)
+                                .font(.dfDisplaySmall(22))
+                                .foregroundStyle(Color.dayflowPaper)
+
+                            Spacer()
+
+                            DatePicker("", selection: $time, displayedComponents: .hourAndMinute)
+                                .datePickerStyle(.compact)
+                                .labelsHidden()
+                                .tint(Color.dayflowLime)
+                        }
+                        .padding(.horizontal, 16)
+                        .frame(height: 62)
+                        .background(
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .fill(Color.dayflowPanel.opacity(0.82))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1)
+                        )
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Тип")
+                            .font(.dfBodyBold(12))
+                            .foregroundStyle(Color.dayflowMist)
+                            .textCase(.uppercase)
+
+                        HStack(spacing: 10) {
+                            ForEach(DayActivityCategory.creatableCases) { option in
+                                Button {
+                                    category = option
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: option.defaultIcon)
+                                            .font(.system(size: 14, weight: .bold))
+
+                                        Text(option.title)
+                                            .font(.dfBodyBold(13))
+                                    }
+                                    .foregroundStyle(category == option ? Color.dayflowBlack : Color.dayflowPaper)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 48)
+                                    .background(
+                                        Capsule().fill(category == option ? Color.dayflowLime : Color.dayflowPanel.opacity(0.82))
+                                    )
+                                    .overlay(Capsule().stroke(Color.dayflowPaper.opacity(0.10), lineWidth: 1))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    if let errorText {
+                        Text(errorText)
+                            .font(.dfBodyBold(13))
+                            .foregroundStyle(Color.dayflowRose)
+                    }
+
+                    Button(action: save) {
+                        HStack {
+                            Text("Сохранить")
+                                .font(.dfDisplaySmall(18))
+
+                            Spacer()
+
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 17, weight: .black))
+                        }
+                        .foregroundStyle(Color.dayflowBlack)
+                        .padding(.horizontal, 18)
+                        .frame(height: 58)
+                        .background(Capsule().fill(Color.dayflowLime))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .opacity(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.42 : 1)
+                    .padding(.top, 4)
+                }
+                .padding(18)
+            }
+            .background(Color.dayflowBlack.ignoresSafeArea())
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Закрыть") {
+                        dismiss()
+                    }
+                    .font(.dfBodyBold(14))
+                    .foregroundStyle(Color.dayflowMist)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+        .dismissKeyboardOnTapOutside()
+    }
+
+    private var selectedTimeText: String {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: time)
+        return String(format: "%d:%02d", components.hour ?? 0, components.minute ?? 0)
+    }
+
+    private func save() {
+        do {
+            let keepsCategory = category == activity.category
+            try onSave(NewDayActivity(
+                title: title,
+                timeText: selectedTimeText,
+                detail: detail,
+                category: category,
+                icon: keepsCategory ? activity.icon : category.defaultIcon,
+                accent: keepsCategory ? activity.accent : category.defaultAccent
+            ))
+            dismiss()
+        } catch DayActivityValidationError.blankTitle {
+            errorText = "Добавь название."
+        } catch DayActivityValidationError.invalidTime {
+            errorText = "Проверь время."
+        } catch {
+            errorText = "Не удалось сохранить. Попробуй еще раз."
+        }
+    }
+
+    private static func date(fromMinutes minutes: Int) -> Date {
+        let start = Calendar.current.startOfDay(for: Date())
+        return Calendar.current.date(byAdding: .minute, value: minutes, to: start) ?? Date()
     }
 }
 

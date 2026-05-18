@@ -769,6 +769,50 @@ final class DayPlanStoreTests: XCTestCase {
         XCTAssertEqual(store.summary.totalCount, 0)
     }
 
+    func testUpdatingActivityEditsVisibleFieldsAndPreservesIdentity() throws {
+        let today = date(year: 2026, month: 5, day: 2)
+        let store = DayPlanStore(storage: MemoryActivityStorage(), todayProvider: { today })
+        try store.add(NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky), on: today)
+
+        let original = try XCTUnwrap(store.activities(on: today).first)
+        try store.setCompleted(original.id, true)
+        try store.update(
+            original.id,
+            with: NewDayActivity(
+                title: "Созвон",
+                timeText: "14:30",
+                detail: "Команда",
+                category: .personal,
+                icon: "phone.fill",
+                accent: .rose
+            )
+        )
+
+        let updated = try XCTUnwrap(store.activities(on: today).first)
+        XCTAssertEqual(updated.id, original.id)
+        XCTAssertEqual(updated.title, "Созвон")
+        XCTAssertEqual(updated.timeText, "14:30")
+        XCTAssertEqual(updated.detail, "Команда")
+        XCTAssertEqual(updated.category, .personal)
+        XCTAssertEqual(updated.icon, "phone.fill")
+        XCTAssertEqual(updated.accent, .rose)
+        XCTAssertEqual(updated.dayID, DayActivity.dayID(for: today, calendar: testCalendar))
+        XCTAssertTrue(updated.isCompleted)
+    }
+
+    func testUpdatingMissingActivityThrowsNotFound() throws {
+        let store = DayPlanStore(storage: MemoryActivityStorage())
+
+        XCTAssertThrowsError(
+            try store.update(
+                UUID(),
+                with: NewDayActivity(title: "Бег", timeText: "7:00", detail: "Парк", category: .body, icon: "figure.run", accent: .sky)
+            )
+        ) { error in
+            XCTAssertEqual(error as? DayActivityValidationError, .activityNotFound)
+        }
+    }
+
     func testLegacyActivitiesWithoutDayBelongToConfiguredTodayOnly() throws {
         let today = date(year: 2026, month: 5, day: 2)
         let tomorrow = date(year: 2026, month: 5, day: 3)

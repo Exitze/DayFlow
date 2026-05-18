@@ -39,6 +39,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Dayflow/Dayflow.entitlements
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: JB6349HSHY
+        TARGETED_DEVICE_FAMILY: "1"
 
   DayflowWidgetExtension:
     type: app-extension
@@ -70,3 +71,4 @@ targets:
         CODE_SIGN_ENTITLEMENTS: DayflowWidget/DayflowWidget.entitlements
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: JB6349HSHY
+        TARGETED_DEVICE_FAMILY: "1"
